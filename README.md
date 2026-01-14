@@ -11,6 +11,37 @@ oav validate
 
 `.oav/` is automatically added to `.gitignore` on first run.
 
+## Install
+
+### Homebrew (repo tap)
+
+```bash
+brew tap entur/openapi-validator-cli https://github.com/entur/openapi-validator-cli
+brew install oav
+```
+
+The formula lives at `Formula/oav.rb`. Update the version and sha256 values per release.
+
+### Curl install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/entur/openapi-validator-cli/main/install.sh | sh
+```
+
+### Cargo install (Rust required)
+
+```bash
+cargo install --git https://github.com/entur/openapi-validator-cli
+```
+
+### Uninstall
+
+- Homebrew: `brew uninstall oav`
+- Cargo: `cargo uninstall openapi-validator`
+- Curl/manual: remove both binaries from your install dir (e.g. `rm /usr/local/bin/oav /usr/local/bin/openapi-validator`)
+
+Both `oav` and `openapi-validator` are installed together and should be removed together.
+
 ## Commands
 
 - `oav init` — create `.oav/`, scaffold `.oavc`, and add gitignore entries
@@ -71,7 +102,7 @@ The CLI provides two binaries: `openapi-validator` and `oav`.
 
 ## Testing
 
-Integration tests live under `tests/` and use fixtures from `test/`. Docker is required.
+Integration tests live under `tests/` and use fixtures from `tests/fixtures/`. Docker is required.
 
 ```bash
 cargo test -- --ignored

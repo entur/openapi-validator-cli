@@ -1,11 +1,11 @@
 [package]
 name = "openapi-validator"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "OpenAPI Validator CLI for linting, generating, and compiling OpenAPI specs locally"
-license = "MIT"
-repository = "https://github.com/entur/openapi-validator"
-rust-version = "1.74"
+license = "EUPL-1.2"
+repository = "https://github.com/entur/openapi-validator-cli"
+rust-version = "1.92.0"
 default-run = "openapi-validator"
 
 [[bin]]
@@ -13,14 +13,14 @@ name = "oav"
 path = "src/bin/oav.rs"
 
 [dependencies]
-anyhow = "1.0.95"
+anyhow = "1.0.100"
 atty = "0.2.14"
-clap = { version = "4.5.32", features = ["derive"] }
+clap = { version = "4.5.54", features = ["derive"] }
 include_dir = "0.7.4"
-indicatif = "0.17.11"
-libc = "0.2.153"
-owo-colors = "4.2.0"
-serde = { version = "1.0.219", features = ["derive"] }
+indicatif = "0.18.3"
+libc = "0.2.180"
+owo-colors = "4.2.3"
+serde = { version = "1.0.228", features = ["derive"] }
 serde_yaml = "0.9.34"
 walkdir = "2.5.0"
 
@@ -31,5 +31,5 @@ strip = "symbols"
 panic = "abort"
 
 [dev-dependencies]
-assert_cmd = "2.0.14"
-tempfile = "3.12.0"
+assert_cmd = "2.1.2"
+tempfile = "3.24.0"
