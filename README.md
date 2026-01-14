@@ -25,8 +25,10 @@ The formula lives at `Formula/oav.rb`. Update the version and sha256 values per 
 ### Curl install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/entur/openapi-validator-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/entur/openapi-validator-cli/main/install.sh | bash
 ```
+
+The installer requires `bash` (it uses bash arrays).
 
 ### Cargo install (Rust required)
 
