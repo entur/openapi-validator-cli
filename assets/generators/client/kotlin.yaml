@@ -1,0 +1,12 @@
+# Kotlin Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/kotlin
+
+generatorName: kotlin
+outputDir: generated/client/kotlin
+
+additionalProperties:
+  library: jvm-okhttp4
+  groupId: com.example
+  artifactId: openapi-client
+  artifactVersion: 1.0.0
+  packageName: com.example.client

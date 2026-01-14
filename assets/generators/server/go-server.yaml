@@ -1,0 +1,17 @@
+# Go Server Generator Configuration
+# https://openapi-generator.tech/docs/generators/go-server
+
+generatorName: go-server
+outputDir: generated/server/go-server
+
+additionalProperties:
+  packageName: openapi
+  packageVersion: 1.0.0
+  title: Generated API
+  serverPort: 8080
+  featureCORS: false
+  hideGenerationTimestamp: true
+  router: chi
+  outputAsLibrary: false
+  onlyInterfaces: false
+  enumClassPrefix: true

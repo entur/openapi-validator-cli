@@ -1,0 +1,170 @@
+services:
+  # Build/compile checks for generated projects.
+  # These are intentionally split per ecosystem to avoid a single huge image.
+  build-aspnetcore:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    volumes:
+      - ./generated/server/aspnetcore:/src:rw
+      - nuget-cache:/root/.nuget/packages
+    working_dir: /src/src/GeneratedApi
+    command: dotnet build GeneratedApi.csproj -c Release
+
+  build-go-server:
+    image: golang:1.25-alpine
+    volumes:
+      - ./generated/server/go-server:/src:rw
+      - go-pkg-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    working_dir: /src
+    command: >
+      sh -c
+      'set -e;
+      if test -f go.mod; then
+        go mod tidy && go test ./...;
+      elif test -f go/go.mod; then
+        cd go && go mod tidy && go test ./...;
+      else
+        go mod init example.com/openapi && go mod tidy && go test ./...;
+      fi'
+
+  build-kotlin-spring:
+    image: gradle:8-jdk21
+    volumes:
+      - ./generated/server/kotlin-spring:/src:rw
+      - gradle-cache:/home/gradle/.gradle
+    working_dir: /src
+    command: gradle --no-daemon build -x test
+
+  build-spring:
+    image: maven:3-eclipse-temurin-21
+    volumes:
+      - ./generated/server/spring:/src:rw
+      - m2-cache:/root/.m2
+    working_dir: /src
+    command: mvn -DskipTests package
+
+  build-typescript-nestjs:
+    image: node:24-alpine
+    volumes:
+      - ./generated/server/typescript-nestjs:/src:rw
+      - npm-cache:/root/.npm
+    working_dir: /src
+    command: >
+      sh -lc
+      'npm install &&
+      npm run build'
+
+  build-python-fastapi:
+    image: python:3.12-slim
+    volumes:
+      - ./generated/server/python-fastapi:/src:rw
+      - pip-cache:/root/.cache/pip
+    working_dir: /src
+    command: >
+      sh -lc
+      'apt-get update &&
+      apt-get install -y --no-install-recommends g++ make &&
+      pip install --no-cache-dir -r requirements.txt &&
+      python -m compileall . &&
+      apt-get purge -y g++ make &&
+      apt-get autoremove -y &&
+      rm -rf /var/lib/apt/lists/*'
+
+  # Client build/compile checks
+  build-client-typescript-axios:
+    image: node:24-alpine
+    volumes:
+      - ./generated/client/typescript-axios:/src:rw
+      - npm-cache:/root/.npm
+    working_dir: /src
+    command: >
+      sh -lc
+      'npm install &&
+      npx tsc --noEmit'
+
+  build-client-typescript-fetch:
+    image: node:24-alpine
+    volumes:
+      - ./generated/client/typescript-fetch:/src:rw
+      - npm-cache:/root/.npm
+    working_dir: /src
+    command: >
+      sh -lc
+      'npm install &&
+      npx tsc --noEmit'
+
+  build-client-typescript-node:
+    image: node:24-alpine
+    volumes:
+      - ./generated/client/typescript-node:/src:rw
+      - npm-cache:/root/.npm
+    working_dir: /src
+    command: >
+      sh -lc
+      'npm install &&
+      npx tsc --noEmit'
+
+  build-client-java:
+    image: maven:3-eclipse-temurin-21
+    volumes:
+      - ./generated/client/java:/src:rw
+      - m2-cache:/root/.m2
+    working_dir: /src
+    command: mvn -DskipTests compile
+
+  build-client-go:
+    image: golang:1.25-alpine
+    volumes:
+      - ./generated/client/go:/src:rw
+      - go-pkg-cache:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    working_dir: /src
+    command: >
+      sh -c
+      'set -e;
+      go mod tidy &&
+      go build ./...'
+
+  build-client-csharp:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    volumes:
+      - ./generated/client/csharp:/src:rw
+      - nuget-cache:/root/.nuget/packages
+    working_dir: /src
+    command: >
+      sh -c
+      'set -e;
+      csproj=$$(find . -name "*.csproj" | head -1);
+      if [ -n "$$csproj" ]; then
+        dotnet build "$$csproj" -c Release;
+      else
+        dotnet build -c Release;
+      fi'
+
+  build-client-kotlin:
+    image: gradle:8-jdk21
+    volumes:
+      - ./generated/client/kotlin:/src:rw
+      - gradle-cache:/home/gradle/.gradle
+    working_dir: /src
+    command: gradle --no-daemon build -x test
+
+  build-client-python:
+    image: python:3.12-slim
+    volumes:
+      - ./generated/client/python:/src:rw
+      - pip-cache:/root/.cache/pip
+    working_dir: /src
+    command: >
+      sh -lc
+      'pip install --no-cache-dir -e . 2>/dev/null || pip install --no-cache-dir -r requirements.txt 2>/dev/null || true;
+      python -m compileall .'
+
+volumes:
+  m2-cache:
+  nuget-cache:
+  npm-cache:
+  pip-cache:
+  go-pkg-cache:
+  go-build-cache:
+  gradle-cache:

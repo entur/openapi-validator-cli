@@ -1,0 +1,13 @@
+# Python FastAPI Generator Configuration
+# https://openapi-generator.tech/docs/generators/python-fastapi
+
+generatorName: python-fastapi
+outputDir: generated/server/python-fastapi
+
+additionalProperties:
+  packageName: generated_api
+  packageVersion: 1.0.0
+  projectName: generated-api
+  generateSourceCodeOnly: true
+  hideGenerationTimestamp: true
+  title: Generated API

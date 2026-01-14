@@ -1,0 +1,328 @@
+openapi: 3.1.1
+info:
+  title: Fleet API
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.fleet.example.org/v1
+security:
+  - apiKey: []
+paths:
+  /fleet:
+    get:
+      operationId: getFleet
+      summary: Get fleet
+      responses:
+        "200":
+          description: Fleet response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Fleet"
+        "400":
+          description: Bad request
+  /vehicles/{vehicleId}:
+    get:
+      operationId: getVehicle
+      summary: Get vehicle
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Vehicle response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Vehicle"
+        "404":
+          description: Vehicle not found
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    BaseEntity:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+    ExternalId:
+      anyOf:
+        - type: string
+          pattern: "^[A-Z]{2}-[0-9]{4}$"
+        - type: object
+          required:
+            - system
+            - value
+          properties:
+            system:
+              type: string
+            value:
+              type: string
+    Timestamps:
+      type: object
+      required:
+        - createdAt
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    NamedEntity:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+    TaggedEntity:
+      type: object
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+    IdentifiedEntity:
+      allOf:
+        - $ref: "#/components/schemas/BaseEntity"
+        - type: object
+          properties:
+            externalId:
+              $ref: "#/components/schemas/ExternalId"
+    AuditedEntity:
+      allOf:
+        - $ref: "#/components/schemas/IdentifiedEntity"
+        - $ref: "#/components/schemas/Timestamps"
+    VehicleBase:
+      allOf:
+        - $ref: "#/components/schemas/AuditedEntity"
+        - $ref: "#/components/schemas/NamedEntity"
+        - $ref: "#/components/schemas/TaggedEntity"
+        - type: object
+          required:
+            - vehicleType
+            - status
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - bus
+                - electric-bus
+                - diesel-bus
+                - tram
+                - metro
+            status:
+              type: string
+              enum:
+                - active
+                - maintenance
+                - retired
+            manufacturer:
+              type: string
+            capacity:
+              type: integer
+              minimum: 1
+            powerSource:
+              type: string
+              enum:
+                - electric
+                - diesel
+                - hybrid
+    Registration:
+      type: object
+      required:
+        - countryCode
+        - plateNumber
+      properties:
+        countryCode:
+          type: string
+          minLength: 2
+        plateNumber:
+          type: string
+    Vehicle:
+      allOf:
+        - $ref: "#/components/schemas/VehicleBase"
+        - type: object
+          required:
+            - maxSpeedKph
+          properties:
+            maxSpeedKph:
+              type: integer
+              minimum: 1
+            manufacturer:
+              type: string
+              minLength: 1
+            capacity:
+              type: integer
+              minimum: 1
+            registration:
+              $ref: "#/components/schemas/Registration"
+    Bus:
+      allOf:
+        - $ref: "#/components/schemas/Vehicle"
+        - type: object
+          required:
+            - seatCount
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - bus
+            seatCount:
+              type: integer
+              minimum: 1
+            standingCapacity:
+              type: integer
+              minimum: 0
+            lowFloor:
+              type: boolean
+    ChargingSpec:
+      type: object
+      required:
+        - connector
+      properties:
+        connector:
+          type: string
+          enum:
+            - ccs
+            - pantograph
+            - plug
+        powerKw:
+          type: number
+          minimum: 1
+    ElectricBus:
+      allOf:
+        - $ref: "#/components/schemas/Bus"
+        - type: object
+          required:
+            - batteryKwh
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - electric-bus
+            batteryKwh:
+              type: number
+              minimum: 1
+            charging:
+              anyOf:
+                - $ref: "#/components/schemas/ChargingSpec"
+                - type: string
+                  enum:
+                    - depot
+                    - opportunity
+    DieselBus:
+      allOf:
+        - $ref: "#/components/schemas/Bus"
+        - type: object
+          required:
+            - fuelType
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - diesel-bus
+            fuelType:
+              type: string
+              enum:
+                - diesel
+                - biodiesel
+    Tram:
+      allOf:
+        - $ref: "#/components/schemas/Vehicle"
+        - type: object
+          required:
+            - carCount
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - tram
+            carCount:
+              type: integer
+              minimum: 1
+            gaugeMm:
+              type: integer
+              minimum: 1000
+    Metro:
+      allOf:
+        - $ref: "#/components/schemas/Vehicle"
+        - type: object
+          required:
+            - lineCode
+          properties:
+            vehicleType:
+              type: string
+              enum:
+                - metro
+            lineCode:
+              type: string
+            automated:
+              type: boolean
+    LegacyVehicle:
+      anyOf:
+        - $ref: "#/components/schemas/Bus"
+        - $ref: "#/components/schemas/Tram"
+    Person:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    Organization:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        registrationId:
+          type: string
+    Owner:
+      anyOf:
+        - $ref: "#/components/schemas/Person"
+        - $ref: "#/components/schemas/Organization"
+    Fleet:
+      type: object
+      required:
+        - vehicles
+      properties:
+        owner:
+          $ref: "#/components/schemas/Owner"
+        vehicles:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/Bus"
+              - $ref: "#/components/schemas/ElectricBus"
+              - $ref: "#/components/schemas/DieselBus"
+              - $ref: "#/components/schemas/Tram"
+              - $ref: "#/components/schemas/Metro"
+            discriminator:
+              propertyName: vehicleType
+              mapping:
+                bus: "#/components/schemas/Bus"
+                electric-bus: "#/components/schemas/ElectricBus"
+                diesel-bus: "#/components/schemas/DieselBus"
+                tram: "#/components/schemas/Tram"
+                metro: "#/components/schemas/Metro"
+        legacy:
+          $ref: "#/components/schemas/LegacyVehicle"

@@ -1,0 +1,179 @@
+openapi: 3.1.1
+info:
+  title: Transport API
+  version: 1.0.0
+  description: Public transport schedule and departures.
+  contact:
+    name: API Support
+    email: support@example.org
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: https://api.transit.example.org/v1
+    description: Production
+security:
+  - bearerAuth: []
+tags:
+  - name: lines
+    description: Routes and lines.
+  - name: stops
+    description: Stop lookup and listings.
+  - name: departures
+    description: Upcoming departures.
+paths:
+  /lines:
+    get:
+      operationId: listLines
+      summary: List lines
+      description: Returns all available transit lines.
+      tags:
+        - lines
+      responses:
+        "200":
+          description: A list of lines
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Line"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stops:
+    get:
+      operationId: listStops
+      summary: List stops
+      description: Returns all stops in the system.
+      tags:
+        - stops
+      responses:
+        "200":
+          description: A list of stops
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stop"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stops/{stopId}/departures:
+    get:
+      operationId: listDepartures
+      summary: List departures for a stop
+      description: Returns upcoming departures for a stop.
+      tags:
+        - departures
+      parameters:
+        - name: stopId
+          in: path
+          required: true
+          description: The stop identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: A list of departures
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Departure"
+        "404":
+          description: Stop not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Line:
+      type: object
+      description: A transit line.
+      required:
+        - id
+        - name
+        - mode
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        mode:
+          type: string
+          description: Transit mode.
+          enum:
+            - bus
+            - tram
+            - metro
+            - rail
+    Stop:
+      type: object
+      description: A stop or station.
+      required:
+        - id
+        - name
+        - location
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        location:
+          $ref: "#/components/schemas/Location"
+    Location:
+      type: object
+      description: Geographic coordinates.
+      required:
+        - latitude
+        - longitude
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    Departure:
+      type: object
+      description: A scheduled departure.
+      required:
+        - lineId
+        - destination
+        - scheduledTime
+      properties:
+        lineId:
+          type: string
+        destination:
+          type: string
+        scheduledTime:
+          type: string
+          format: date-time
+        realtime:
+          type: boolean
+          description: Whether the time is real-time.
+    Error:
+      type: object
+      description: Error response.
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+        message:
+          type: string

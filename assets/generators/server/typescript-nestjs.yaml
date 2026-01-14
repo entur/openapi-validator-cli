@@ -1,0 +1,11 @@
+# TypeScript NestJS Server Generator Configuration
+# https://openapi-generator.tech/docs/generators/typescript-nestjs
+
+generatorName: typescript-nestjs
+outputDir: generated/server/typescript-nestjs
+
+additionalProperties:
+  npmName: openapi-server
+  npmVersion: 1.0.0
+  supportsES6: true
+  nestVersion: "8.0.0"

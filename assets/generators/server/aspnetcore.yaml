@@ -1,0 +1,24 @@
+# ASP.NET Core Generator Configuration
+# https://openapi-generator.tech/docs/generators/aspnetcore
+
+generatorName: aspnetcore
+outputDir: generated/server/aspnetcore
+
+additionalProperties:
+  packageName: GeneratedApi
+  packageVersion: 1.0.0
+  aspnetCoreVersion: "8.0"
+  buildTarget: program
+  title: Generated API
+  operationIsAsync: true
+  operationResultTask: true
+  generateBody: true
+  useDateTimeOffset: true
+  useNewtonsoft: false
+  nullableReferenceTypes: true
+  pocoModels: true
+  useSwashbuckle: false
+  isLibrary: false
+
+typeMappings:
+  DateTime: DateTimeOffset

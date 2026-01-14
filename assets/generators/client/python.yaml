@@ -1,0 +1,10 @@
+# Python Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/python
+
+generatorName: python
+outputDir: generated/client/python
+
+additionalProperties:
+  packageName: openapi_client
+  projectName: openapi-client
+  packageVersion: 1.0.0

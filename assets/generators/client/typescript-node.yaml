@@ -1,0 +1,13 @@
+# TypeScript Node Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/typescript-node
+
+generatorName: typescript-node
+outputDir: generated/client/typescript-node
+
+additionalProperties:
+  npmName: generated-api-client
+  npmVersion: 1.0.0
+  supportsES6: true
+  enumPropertyNaming: UPPERCASE
+  modelPropertyNaming: original
+  stringEnums: true

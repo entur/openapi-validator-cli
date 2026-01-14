@@ -1,0 +1,10 @@
+# TypeScript Axios Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/typescript-axios
+
+generatorName: typescript-axios
+outputDir: generated/client/typescript-axios
+
+additionalProperties:
+  npmName: openapi-client
+  npmVersion: 1.0.0
+  supportsES6: true

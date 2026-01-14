@@ -1,0 +1,12 @@
+# Java Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/java
+
+generatorName: java
+outputDir: generated/client/java
+
+additionalProperties:
+  groupId: com.example
+  artifactId: openapi-client
+  artifactVersion: 1.0.0
+  apiPackage: com.example.api
+  modelPackage: com.example.model

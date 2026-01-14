@@ -1,0 +1,23 @@
+# Kotlin Spring Generator Configuration
+# https://openapi-generator.tech/docs/generators/kotlin-spring
+
+generatorName: kotlin-spring
+outputDir: generated/server/kotlin-spring
+
+additionalProperties:
+  artifactId: generated-api
+  artifactVersion: 1.0.0
+  apiPackage: org.example.api
+  modelPackage: org.example.model
+  title: Generated API
+  useTags: true
+  interfaceOnly: false
+  useSpringBoot3: true
+  documentationProvider: source
+  useSwaggerUI: false
+  useBeanValidation: true
+  reactive: false
+  exceptionHandler: false
+  enumPropertyNaming: UPPERCASE
+  serializationLibrary: jackson
+  dateLibrary: java8

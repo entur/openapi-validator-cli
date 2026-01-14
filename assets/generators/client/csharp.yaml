@@ -1,0 +1,10 @@
+# C# Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/csharp
+
+generatorName: csharp
+outputDir: generated/client/csharp
+
+additionalProperties:
+  packageName: OpenApiClient
+  packageVersion: 1.0.0
+  targetFramework: net8.0

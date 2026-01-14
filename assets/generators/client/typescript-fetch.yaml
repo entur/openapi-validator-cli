@@ -1,0 +1,10 @@
+# TypeScript Fetch Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/typescript-fetch
+
+generatorName: typescript-fetch
+outputDir: generated/client/typescript-fetch
+
+additionalProperties:
+  npmName: openapi-client
+  npmVersion: 1.0.0
+  supportsES6: true

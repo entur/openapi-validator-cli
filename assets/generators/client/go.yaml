@@ -1,0 +1,8 @@
+# Go Client Generator Configuration
+# https://openapi-generator.tech/docs/generators/go
+
+generatorName: go
+outputDir: generated/client/go
+
+additionalProperties:
+  packageName: openapiclient
