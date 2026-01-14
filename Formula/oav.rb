@@ -9,19 +9,19 @@ class Oav < Formula
   on_macos do
     on_intel do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "sha256:afeecb924ba8e122aa2635b02232cf5dbd08a4530e3fd44e7eafc083a2780599"
+      sha256 "5c1a01351699a48dd3112e446cfb82a775bef816b47c58622e0e178bb0f3c057"
     end
 
     on_arm do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "sha256:f1d5b519d9211ff77ace6c34621cdfe324b9858553627309e413114ebed1f8cb"
+      sha256 "667132cfe9c737cfda86af2cf13a6e519744c5cd728f8b788527365b2f4b2876"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "sha256:5dd06069b2ce3e7e0cc2e8cdddb8c95b3fe4b38e13886387dd2bac3e4fc3be76"
+      sha256 "e1c497398d8e677e43d719da4f385d0f95a1a01f3d23644e29e5bfee568020bf"
     end
   end
 
