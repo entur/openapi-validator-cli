@@ -84,6 +84,14 @@ generator_image: openapitools/openapi-generator-cli:v7.17.0
 redocly_image: redocly/cli:1.25.5
 ```
 
+## Generators
+
+**Server:** `aspnetcore`, `go-server`, `kotlin-spring`, `python-fastapi`, `spring`, `typescript-nestjs`
+
+**Client:** `csharp`, `go`, `java`, `kotlin`, `python`, `typescript-axios`, `typescript-fetch`, `typescript-node`
+
+After `oav init`, generator configs are available in `.oav/generators/` for customization. See [CONFIGURATION.md](CONFIGURATION.md) for details. You can also skip the init call and just call `oav validate` directly, which also scaffolds a basic config for the CLI.
+
 ## Output Layout
 
 - `.oav/generated/` — generated code
