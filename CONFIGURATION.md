@@ -59,3 +59,47 @@ After running `oav init`, the `.oav/` folder contains:
 Edit files in `.oav/generators/` to customize OpenAPI Generator options. Changes apply on the next `oav validate` run.
 
 The `docker-compose.yaml` defines build services using standard language images (e.g., `golang:1.25-alpine`, `node:24-alpine`). Modify if you need different base images or build commands.
+
+## Adding Custom Generators
+
+You can add any [OpenAPI Generator](https://openapi-generator.tech/docs/generators) not included by default:
+
+**1. Create the generator config**
+
+Add a YAML file in `.oav/generators/server/` or `.oav/generators/client/`:
+
+```yaml
+# .oav/generators/server/rust-axum.yaml
+generatorName: rust-axum
+outputDir: generated/server/rust-axum
+
+additionalProperties:
+  packageName: openapi_server
+  # See generator docs for available options
+```
+
+**2. Add a build service**
+
+Add a matching service in `.oav/docker-compose.yaml`:
+
+```yaml
+build-rust-axum:
+  image: rust:1.83-alpine
+  volumes:
+    - ./generated/server/rust-axum:/src:rw
+  working_dir: /src
+  command: cargo build
+```
+
+The service name must be `build-{generator-name}` for servers or `build-client-{generator-name}` for clients.
+
+**3. Reference in config**
+
+Add the generator to `.oavc`:
+
+```yaml
+server_generators:
+  - rust-axum
+```
+
+The CLI will pick up the new generator on the next `oav validate` run.
