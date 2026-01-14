@@ -1,0 +1,9 @@
+spec: tests/fixtures/inheritance.yml
+mode: server
+lint: true
+generate: true
+compile: true
+server_generators: []
+client_generators: []
+generator_image: openapitools/openapi-generator-cli:v7.17.0
+redocly_image: redocly/cli:1.25.5
