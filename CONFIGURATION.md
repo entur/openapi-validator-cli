@@ -2,17 +2,18 @@
 
 ## .oavc Defaults
 
-| Key                 | Default                                      | Description                     |
-|---------------------|----------------------------------------------|---------------------------------|
-| `spec`              | —                                            | Path to OpenAPI spec (required) |
-| `mode`              | `server`                                     | `server`, `client`, or `both`   |
-| `lint`              | `true`                                       | Run Redocly linting             |
-| `generate`          | `true`                                       | Generate code from spec         |
-| `compile`           | `true`                                       | Build generated code            |
-| `server_generators` | `[]`                                         | Server generators to use        |
-| `client_generators` | `[]`                                         | Client generators to use        |
-| `generator_image`   | `openapitools/openapi-generator-cli:v7.17.0` | OpenAPI Generator image         |
-| `redocly_image`     | `redocly/cli:1.25.5`                         | Redocly CLI image               |
+| Key                   | Default                                      | Description                       |
+|-----------------------|----------------------------------------------|-----------------------------------|
+| `spec`                | —                                            | Path to OpenAPI spec (required)   |
+| `mode`                | `server`                                     | `server`, `client`, or `both`     |
+| `lint`                | `true`                                       | Run Redocly linting               |
+| `generate`            | `true`                                       | Generate code from spec           |
+| `compile`             | `true`                                       | Build generated code              |
+| `server_generators`   | `[]`                                         | Server generators to use          |
+| `client_generators`   | `[]`                                         | Client generators to use          |
+| `generator_overrides` | `{}`                                         | Custom config paths per generator |
+| `generator_image`     | `openapitools/openapi-generator-cli:v7.17.0` | OpenAPI Generator image           |
+| `redocly_image`       | `redocly/cli:1.25.5`                         | Redocly CLI image                 |
 
 When `server_generators` or `client_generators` is empty, all generators for that mode are used.
 
@@ -56,7 +57,16 @@ After running `oav init`, the `.oav/` folder contains:
 └── reports/             # Lint/generate/compile logs
 ```
 
-Edit files in `.oav/generators/` to customize OpenAPI Generator options. Changes apply on the next `oav validate` run.
+Edit files in `.oav/generators/` to customize OpenAPI Generator options. Changes persist across `oav validate` runs. For configs you want to version control, use `generator_overrides` to point to files outside `.oav/`:
+
+```yaml
+# .oavc
+generator_overrides:
+  spring: ./generator-configs/spring.yaml
+  typescript-axios: ./generator-configs/ts-axios.yaml
+```
+
+Resolution order: override path (if set) → `.oav/generators/{scope}/{name}.yaml` → embedded defaults.
 
 The `docker-compose.yaml` defines build services using standard language images (e.g., `golang:1.25-alpine`, `node:24-alpine`). Modify if you need different base images or build commands.
 
