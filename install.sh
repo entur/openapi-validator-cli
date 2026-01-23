@@ -95,10 +95,8 @@ fi
 
 mkdir -p "$install_dir"
 install -m 0755 "${tmpdir}/oav" "${install_dir}/oav"
-install -m 0755 "${tmpdir}/openapi-validator" "${install_dir}/openapi-validator"
 
 echo "Installed oav to ${install_dir}/oav"
-echo "Installed openapi-validator to ${install_dir}/openapi-validator"
 
 if [[ ":$PATH:" != *":${install_dir}:"* ]]; then
   echo "Add ${install_dir} to your PATH."

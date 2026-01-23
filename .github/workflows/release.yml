@@ -68,7 +68,7 @@ jobs:
           dist="dist"
           name="oav-${version}-${target}"
           mkdir -p "${dist}"
-          tar -C "target/${target}/release" -czf "${dist}/${name}.tar.gz" oav openapi-validator
+          tar -C "target/${target}/release" -czf "${dist}/${name}.tar.gz" oav
           (
             cd "${dist}"
             if command -v sha256sum >/dev/null 2>&1; then

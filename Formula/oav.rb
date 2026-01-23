@@ -27,7 +27,6 @@ class Oav < Formula
 
   def install
     bin.install "oav"
-    bin.install "openapi-validator"
   end
 
   test do

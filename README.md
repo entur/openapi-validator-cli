@@ -40,9 +40,7 @@ cargo install --git https://github.com/entur/openapi-validator-cli
 
 - Homebrew: `brew uninstall oav`
 - Cargo: `cargo uninstall openapi-validator`
-- Curl/manual: remove both binaries from your install dir (e.g. `rm /usr/local/bin/oav /usr/local/bin/openapi-validator`)
-
-Both `oav` and `openapi-validator` are installed together and should be removed together.
+- Curl/manual: `rm /usr/local/bin/oav` (or wherever you installed it)
 
 ## Commands
 
@@ -103,8 +101,6 @@ After `oav init`, generator configs are available in `.oav/generators/` for cust
 ```bash
 cargo build --release
 ```
-
-The CLI provides two binaries: `openapi-validator` and `oav`.
 
 ## Requirements
 

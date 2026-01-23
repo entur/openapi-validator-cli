@@ -6,7 +6,6 @@ description = "OpenAPI Validator CLI for linting, generating, and compiling Open
 license = "EUPL-1.2"
 repository = "https://github.com/entur/openapi-validator-cli"
 rust-version = "1.92.0"
-default-run = "openapi-validator"
 
 [[bin]]
 name = "oav"

@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
-#[command(name = "openapi-validator", version, about = "OpenAPI Validator CLI")]
+#[command(name = "oav", version, about = "OpenAPI Validator CLI")]
 pub struct Cli {
     #[arg(short, long, global = true, conflicts_with = "quiet")]
     pub verbose: bool,
