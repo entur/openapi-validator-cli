@@ -68,7 +68,7 @@ jobs:
           dist="dist"
           name="oav-${version}-${target}"
           mkdir -p "${dist}"
-          tar -C "target/${target}/release" -czf "${dist}/${name}.tar.gz" oav openapi-validator
+          tar -C "target/${target}/release" -czf "${dist}/${name}.tar.gz" oav
           (
             cd "${dist}"
             if command -v sha256sum >/dev/null 2>&1; then
@@ -102,3 +102,50 @@ jobs:
           files: |
             dist/*.tar.gz
             dist/*.tar.gz.sha256
+
+  update-formula:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Update Formula
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.version.outputs.value }}"
+
+          sha_x86_darwin=$(awk '{print $1}' "dist/oav-${version}-x86_64-apple-darwin.tar.gz.sha256")
+          sha_arm_darwin=$(awk '{print $1}' "dist/oav-${version}-aarch64-apple-darwin.tar.gz.sha256")
+          sha_x86_linux=$(awk '{print $1}' "dist/oav-${version}-x86_64-unknown-linux-gnu.tar.gz.sha256")
+
+          sed -i \
+            -e "s/^  version \".*\"/  version \"${version}\"/" \
+            -e "/x86_64-apple-darwin/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${sha_x86_darwin}\"/; }" \
+            -e "/aarch64-apple-darwin/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${sha_arm_darwin}\"/; }" \
+            -e "/x86_64-unknown-linux-gnu/{ n; s/sha256 \"[a-f0-9]*\"/sha256 \"${sha_x86_linux}\"/; }" \
+            Formula/oav.rb
+
+          echo "Updated Formula/oav.rb:"
+          cat Formula/oav.rb
+
+      - name: Commit and Push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/oav.rb
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update formula for v${{ needs.version.outputs.value }}"
+            git push origin main
+          fi

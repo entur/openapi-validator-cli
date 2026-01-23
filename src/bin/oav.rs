@@ -1,5 +1,5 @@
 fn main() {
-    if let Err(err) = openapi_validator::run() {
+    if let Err(err) = oav::run() {
         eprintln!("{err:#}");
         std::process::exit(1);
     }
