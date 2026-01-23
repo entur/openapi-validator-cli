@@ -51,25 +51,19 @@ pub enum Commands {
 
 #[derive(Subcommand, Debug)]
 pub enum ConfigCommand {
-    Get { key: ConfigKey },
-    Set { key: ConfigKey, value: String },
+    /// Get a config value. Use dot notation for map keys (e.g., generator_overrides.spring)
+    Get {
+        key: String,
+    },
+    /// Set a config value. Use dot notation for map keys (e.g., generator_overrides.spring)
+    Set {
+        key: String,
+        value: String,
+    },
     Edit,
     Print,
     Ignore,
     Unignore,
-}
-
-#[derive(ValueEnum, Debug, Clone, Copy)]
-pub enum ConfigKey {
-    Spec,
-    Mode,
-    Lint,
-    Generate,
-    Compile,
-    ServerGenerators,
-    ClientGenerators,
-    GeneratorImage,
-    RedoclyImage,
 }
 
 #[derive(ValueEnum, Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
