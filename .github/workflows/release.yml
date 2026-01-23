@@ -138,14 +138,27 @@ jobs:
           echo "Updated Formula/oav.rb:"
           cat Formula/oav.rb
 
-      - name: Commit and Push
+      - name: Create Formula Update PR
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          version="${{ needs.version.outputs.value }}"
+          branch="chore/formula-v${version}"
+
+          if git diff --quiet Formula/oav.rb; then
+            echo "No changes to Formula"
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
           git add Formula/oav.rb
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update formula for v${{ needs.version.outputs.value }}"
-            git push origin main
-          fi
+          git commit -m "Update formula for v${version}"
+          git push origin "$branch"
+
+          gh pr create \
+            --title "Update Homebrew formula for v${version}" \
+            --body "Automated formula update after release v${version}." \
+            --base main \
+            --head "$branch"
