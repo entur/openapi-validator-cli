@@ -76,8 +76,9 @@ fn cmd_init(
 ) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
-    if cfg.manage_gitignore {
-        util::ensure_gitignore(root, ignore_config)?;
+    util::add_gitignore_entries(root, &[".oav/"])?;
+    if cfg.manage_gitignore && ignore_config {
+        util::add_gitignore_entries(root, &[".oavc"])?;
     }
     if let Some(s) = spec {
         cfg.spec = Some(s);
@@ -123,9 +124,7 @@ fn cmd_validate(
 ) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
-    if cfg.manage_gitignore {
-        util::ensure_gitignore(root, false)?;
-    }
+    util::add_gitignore_entries(root, &[".oav/"])?;
     util::extract_assets(root, &ASSETS)?;
     if let Some(s) = spec_override {
         cfg.spec = Some(s);
