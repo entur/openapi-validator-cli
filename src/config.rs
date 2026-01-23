@@ -21,6 +21,7 @@ pub struct Config {
     pub generator_overrides: HashMap<String, String>,
     pub generator_image: String,
     pub redocly_image: String,
+    pub manage_gitignore: bool,
 }
 
 impl Default for Config {
@@ -36,6 +37,7 @@ impl Default for Config {
             generator_overrides: HashMap::new(),
             generator_image: "openapitools/openapi-generator-cli:v7.17.0".to_string(),
             redocly_image: "redocly/cli:1.25.5".to_string(),
+            manage_gitignore: true,
         }
     }
 }
@@ -87,6 +89,7 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
         }
         "generator_image" | "generator-image" => println!("{}", config.generator_image),
         "redocly_image" | "redocly-image" => println!("{}", config.redocly_image),
+        "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
@@ -140,6 +143,7 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
         }
         "generator_image" | "generator-image" => config.generator_image = value,
         "redocly_image" | "redocly-image" => config.redocly_image = value,
+        "manage_gitignore" | "manage-gitignore" => config.manage_gitignore = parse_bool(&value)?,
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
