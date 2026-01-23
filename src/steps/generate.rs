@@ -77,11 +77,8 @@ fn run_for_scope(
     };
 
     let mut failures = 0;
-    for config_path in configs {
-        let name = config_path
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .unwrap_or("unknown");
+    for (name, config_path) in configs {
+        let name = name.as_str();
         let log_path = report_dir.join(format!("{name}.log"));
         let config_rel = config_path
             .strip_prefix(root)
@@ -141,7 +138,7 @@ fn resolve_configs(
     config_dir: &Path,
     requested: &[String],
     overrides: &HashMap<String, String>,
-) -> Result<Vec<PathBuf>> {
+) -> Result<Vec<(String, PathBuf)>> {
     if !config_dir.is_dir() {
         bail!("Missing config directory: {}", config_dir.display());
     }
@@ -182,7 +179,18 @@ fn resolve_configs(
                     override_path
                 );
             }
-            resolved
+            let canonical = resolved
+                .canonicalize()
+                .with_context(|| format!("Failed to resolve override path for '{}'", name))?;
+            let canonical_root = root.canonicalize().context("Failed to resolve root path")?;
+            if !canonical.starts_with(&canonical_root) {
+                bail!(
+                    "Generator override for '{}' resolves outside repository: {}",
+                    name,
+                    override_path
+                );
+            }
+            canonical
         } else {
             // Use default from .oav/generators/{scope}/
             let default_path = config_dir.join(format!("{name}.yaml"));
@@ -191,10 +199,10 @@ fn resolve_configs(
             }
             default_path
         };
-        configs.push(path);
+        configs.push((name.clone(), path));
     }
 
-    configs.sort();
+    configs.sort_by(|(a, _), (b, _)| a.cmp(b));
     if configs.is_empty() {
         bail!("No generator configs found under {}", config_dir.display());
     }

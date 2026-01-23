@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use crate::cli::{ConfigKey, Mode};
+use crate::cli::Mode;
 
 pub const CONFIG_FILE: &str = ".oavc";
 
@@ -57,36 +57,90 @@ pub fn write(root: &Path, config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub fn print_value(config: &Config, key: ConfigKey) -> Result<()> {
-    match key {
-        ConfigKey::Spec => {
+pub fn print_value(config: &Config, key: &str) -> Result<()> {
+    let (base, subkey) = parse_key(key);
+
+    match base {
+        "spec" => {
             if let Some(spec) = &config.spec {
                 println!("{spec}");
             }
         }
-        ConfigKey::Mode => println!("{}", config.mode.as_str()),
-        ConfigKey::Lint => println!("{}", config.lint),
-        ConfigKey::Generate => println!("{}", config.generate),
-        ConfigKey::Compile => println!("{}", config.compile),
-        ConfigKey::ServerGenerators => println!("{}", config.server_generators.join(",")),
-        ConfigKey::ClientGenerators => println!("{}", config.client_generators.join(",")),
-        ConfigKey::GeneratorImage => println!("{}", config.generator_image),
-        ConfigKey::RedoclyImage => println!("{}", config.redocly_image),
+        "mode" => println!("{}", config.mode.as_str()),
+        "lint" => println!("{}", config.lint),
+        "generate" => println!("{}", config.generate),
+        "compile" => println!("{}", config.compile),
+        "server_generators" | "server-generators" => {
+            print_yaml(&config.server_generators)?;
+        }
+        "client_generators" | "client-generators" => {
+            print_yaml(&config.client_generators)?;
+        }
+        "generator_overrides" | "generator-overrides" => {
+            if let Some(subkey) = subkey {
+                if let Some(value) = config.generator_overrides.get(subkey) {
+                    println!("{value}");
+                }
+            } else {
+                print_yaml(&config.generator_overrides)?;
+            }
+        }
+        "generator_image" | "generator-image" => println!("{}", config.generator_image),
+        "redocly_image" | "redocly-image" => println!("{}", config.redocly_image),
+        _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
 }
 
-pub fn set_value(config: &mut Config, key: ConfigKey, value: String) -> Result<()> {
-    match key {
-        ConfigKey::Spec => config.spec = Some(value),
-        ConfigKey::Mode => config.mode = parse_mode(&value)?,
-        ConfigKey::Lint => config.lint = parse_bool(&value)?,
-        ConfigKey::Generate => config.generate = parse_bool(&value)?,
-        ConfigKey::Compile => config.compile = parse_bool(&value)?,
-        ConfigKey::ServerGenerators => config.server_generators = parse_list(&value),
-        ConfigKey::ClientGenerators => config.client_generators = parse_list(&value),
-        ConfigKey::GeneratorImage => config.generator_image = value,
-        ConfigKey::RedoclyImage => config.redocly_image = value,
+fn parse_key(key: &str) -> (&str, Option<&str>) {
+    match key.split_once('.') {
+        Some((base, subkey)) => (base, Some(subkey)),
+        None => (key, None),
+    }
+}
+
+fn print_yaml<T: Serialize>(value: &T) -> Result<()> {
+    let yaml = serde_yaml::to_string(value).context("Failed to serialize value")?;
+    // Remove trailing newline and print inline
+    print!("{}", yaml.trim_end());
+    println!();
+    Ok(())
+}
+
+pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
+    let (base, subkey) = parse_key(key);
+
+    match base {
+        "spec" => config.spec = Some(value),
+        "mode" => config.mode = parse_mode(&value)?,
+        "lint" => config.lint = parse_bool(&value)?,
+        "generate" => config.generate = parse_bool(&value)?,
+        "compile" => config.compile = parse_bool(&value)?,
+        "server_generators" | "server-generators" => {
+            config.server_generators = parse_yaml_list(&value)
+                .context("Invalid YAML list for server_generators (example: [spring, kotlin])")?;
+        }
+        "client_generators" | "client-generators" => {
+            config.client_generators = parse_yaml_list(&value).context(
+                "Invalid YAML list for client_generators (example: [typescript, swift])",
+            )?;
+        }
+        "generator_overrides" | "generator-overrides" => {
+            if let Some(subkey) = subkey {
+                if value.is_empty() {
+                    config.generator_overrides.remove(subkey);
+                } else {
+                    config.generator_overrides.insert(subkey.to_string(), value);
+                }
+            } else {
+                config.generator_overrides = parse_yaml_map(&value).context(
+                    "Invalid YAML map for generator_overrides (example: {spring: ./path.yaml})",
+                )?;
+            }
+        }
+        "generator_image" | "generator-image" => config.generator_image = value,
+        "redocly_image" | "redocly-image" => config.redocly_image = value,
+        _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
 }
@@ -108,10 +162,16 @@ fn parse_bool(raw: &str) -> Result<bool> {
     }
 }
 
-fn parse_list(raw: &str) -> Vec<String> {
-    raw.split(',')
-        .map(|item| item.trim())
-        .filter(|item| !item.is_empty())
-        .map(|item| item.to_string())
-        .collect()
+fn parse_yaml_list(raw: &str) -> Result<Vec<String>> {
+    if raw.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+    serde_yaml::from_str(raw).context("Failed to parse as YAML list")
+}
+
+fn parse_yaml_map(raw: &str) -> Result<HashMap<String, String>> {
+    if raw.trim().is_empty() {
+        return Ok(HashMap::new());
+    }
+    serde_yaml::from_str(raw).context("Failed to parse as YAML map")
 }

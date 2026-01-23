@@ -233,11 +233,11 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
             let cfg = config::load(root)?;
-            config::print_value(&cfg, key)?;
+            config::print_value(&cfg, &key)?;
         }
         ConfigCommand::Set { key, value } => {
             let mut cfg = config::load(root)?;
-            config::set_value(&mut cfg, key, value)?;
+            config::set_value(&mut cfg, &key, value)?;
             config::write(root, &cfg)?;
             output.println(&format!("Updated {}", root.join(CONFIG_FILE).display()));
         }
