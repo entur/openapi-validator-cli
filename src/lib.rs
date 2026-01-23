@@ -74,10 +74,11 @@ fn cmd_init(
     client_generators: Option<Vec<String>>,
     ignore_config: bool,
 ) -> Result<()> {
-    util::ensure_oav_dir(root)?;
-    util::ensure_gitignore(root, ignore_config)?;
-
     let mut cfg = config::load(root)?;
+    util::ensure_oav_dir(root)?;
+    if cfg.manage_gitignore {
+        util::ensure_gitignore(root, ignore_config)?;
+    }
     if let Some(s) = spec {
         cfg.spec = Some(s);
     }
@@ -120,11 +121,12 @@ fn cmd_validate(
     skip_generate: bool,
     skip_compile: bool,
 ) -> Result<()> {
-    util::ensure_oav_dir(root)?;
-    util::ensure_gitignore(root, false)?;
-    util::extract_assets(root, &ASSETS)?;
-
     let mut cfg = config::load(root)?;
+    util::ensure_oav_dir(root)?;
+    if cfg.manage_gitignore {
+        util::ensure_gitignore(root, false)?;
+    }
+    util::extract_assets(root, &ASSETS)?;
     if let Some(s) = spec_override {
         cfg.spec = Some(s);
     }
@@ -228,8 +230,6 @@ fn cmd_validate(
 }
 
 fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> Result<()> {
-    util::ensure_gitignore(root, false)?;
-
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
             let cfg = config::load(root)?;
@@ -262,11 +262,19 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
         }
         ConfigCommand::Ignore => {
             util::ensure_gitignore(root, true)?;
-            output.println("Added .oavc to .gitignore.");
+            let mut cfg = config::load(root)?;
+            cfg.manage_gitignore = true;
+            config::write(root, &cfg)?;
+            output.println("Added .oavc to .gitignore and enabled automatic gitignore management.");
         }
         ConfigCommand::Unignore => {
             util::remove_gitignore_entries(root, &[".oavc"])?;
-            output.println("Removed .oavc from .gitignore.");
+            let mut cfg = config::load(root)?;
+            cfg.manage_gitignore = false;
+            config::write(root, &cfg)?;
+            output.println(
+                "Removed .oavc from .gitignore and disabled automatic gitignore management.",
+            );
         }
     }
     Ok(())
