@@ -27,9 +27,8 @@ fn fixture_path(name: &str) -> PathBuf {
 }
 
 fn write_config(root: &Path, spec: &str) -> Result<(), Box<dyn Error>> {
-    let content = format!(
-        "spec: {spec}\nmode: server\nlint: true\ngenerate: false\ncompile: false\n"
-    );
+    let content =
+        format!("spec: {spec}\nmode: server\nlint: true\ngenerate: false\ncompile: false\n");
     fs::write(root.join(".oavc"), content)?;
     Ok(())
 }
