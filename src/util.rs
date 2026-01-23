@@ -6,6 +6,12 @@ use std::path::{Path, PathBuf};
 
 pub const OAV_DIR: &str = ".oav";
 
+/// Convert a path to a POSIX-style string for use in container paths.
+/// On Windows, backslashes are converted to forward slashes.
+pub fn to_posix_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
 pub fn ensure_oav_dir(root: &Path) -> Result<()> {
     fs::create_dir_all(root.join(OAV_DIR)).context("Failed to create .oav directory")?;
     Ok(())

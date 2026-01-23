@@ -7,7 +7,7 @@ use crate::cli::Mode;
 use crate::config::Config;
 use crate::docker;
 use crate::output::Output;
-use crate::util::{OAV_DIR, append_error, append_status, write_log_header};
+use crate::util::{append_error, append_status, to_posix_path, write_log_header, OAV_DIR};
 
 pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
     let reports_root = root.join(OAV_DIR).join("reports").join("generate");
@@ -82,8 +82,8 @@ fn run_for_scope(
         let config_rel = config_path
             .strip_prefix(root)
             .context("Generator config path is outside repository")?;
-        let container_config = format!("/work/{}", config_rel.to_string_lossy());
-        let container_spec = format!("/work/{}", spec_path.to_string_lossy());
+        let container_config = format!("/work/{}", to_posix_path(config_rel));
+        let container_spec = format!("/work/{}", to_posix_path(spec_path));
 
         let command_line = format!(
             "$ docker run --rm {user} -v {root}:/work -w /work/{oav} {image} generate -i {spec} -c {config}",
