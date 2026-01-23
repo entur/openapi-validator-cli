@@ -111,11 +111,15 @@ fn resolve_tasks(
     prefix: &str,
 ) -> Result<Vec<Task>> {
     let names: Vec<String> = if !requested.is_empty() {
-        requested
+        let filtered: Vec<String> = requested
             .iter()
             .map(|name| name.trim().to_string())
             .filter(|name| !name.is_empty())
-            .collect()
+            .collect();
+        if filtered.is_empty() {
+            bail!("No valid {scope} generators specified");
+        }
+        filtered
     } else {
         supported.iter().map(|name| (*name).to_string()).collect()
     };
