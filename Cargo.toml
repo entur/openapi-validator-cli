@@ -1,6 +1,6 @@
 [package]
-name = "openapi-validator"
-version = "0.1.0"
+name = "oav"
+version = "0.2.0"
 edition = "2024"
 description = "OpenAPI Validator CLI for linting, generating, and compiling OpenAPI specs locally"
 license = "EUPL-1.2"

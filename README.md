@@ -20,7 +20,7 @@ brew tap entur/openapi-validator-cli https://github.com/entur/openapi-validator-
 brew install oav
 ```
 
-The formula lives at `Formula/oav.rb`. Update the version and sha256 values per release.
+The formula at `Formula/oav.rb` is updated automatically by the release workflow.
 
 ### Curl install
 
@@ -39,7 +39,7 @@ cargo install --git https://github.com/entur/openapi-validator-cli
 ### Uninstall
 
 - Homebrew: `brew uninstall oav`
-- Cargo: `cargo uninstall openapi-validator`
+- Cargo: `cargo uninstall oav`
 - Curl/manual: `rm /usr/local/bin/oav` (or wherever you installed it)
 
 ## Commands
