@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
@@ -17,6 +18,7 @@ pub struct Config {
     pub compile: bool,
     pub server_generators: Vec<String>,
     pub client_generators: Vec<String>,
+    pub generator_overrides: HashMap<String, String>,
     pub generator_image: String,
     pub redocly_image: String,
 }
@@ -31,6 +33,7 @@ impl Default for Config {
             compile: true,
             server_generators: Vec::new(),
             client_generators: Vec::new(),
+            generator_overrides: HashMap::new(),
             generator_image: "openapitools/openapi-generator-cli:v7.17.0".to_string(),
             redocly_image: "redocly/cli:1.25.5".to_string(),
         }

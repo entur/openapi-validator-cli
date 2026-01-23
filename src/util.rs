@@ -47,6 +47,9 @@ fn write_assets(target: &Path, dir: &Dir) -> Result<()> {
             }
             DirEntry::File(file) => {
                 let dest = target.join(file.path());
+                if dest.exists() {
+                    continue;
+                }
                 if let Some(parent) = dest.parent() {
                     fs::create_dir_all(parent)
                         .with_context(|| format!("Failed to create {}", parent.display()))?;

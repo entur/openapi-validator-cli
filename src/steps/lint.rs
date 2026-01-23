@@ -5,7 +5,7 @@ use std::process::Command;
 
 use crate::docker;
 use crate::output::Output;
-use crate::util::{append_status, to_posix_path, write_log_header, OAV_DIR};
+use crate::util::{OAV_DIR, append_status, to_posix_path, write_log_header};
 
 pub fn run(root: &Path, spec_path: &Path, redocly_image: &str, output: &Output) -> Result<bool> {
     let reports_dir = root.join(OAV_DIR).join("reports").join("lint");

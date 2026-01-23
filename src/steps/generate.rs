@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -7,7 +8,7 @@ use crate::cli::Mode;
 use crate::config::Config;
 use crate::docker;
 use crate::output::Output;
-use crate::util::{append_error, append_status, to_posix_path, write_log_header, OAV_DIR};
+use crate::util::{OAV_DIR, append_error, append_status, to_posix_path, write_log_header};
 
 pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
     let reports_root = root.join(OAV_DIR).join("reports").join("generate");
@@ -24,6 +25,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             "server",
             &server_dir,
             &config.server_generators,
+            &config.generator_overrides,
             &reports_root,
             output,
         )? {
@@ -39,6 +41,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             "client",
             &client_dir,
             &config.client_generators,
+            &config.generator_overrides,
             &reports_root,
             output,
         )? {
@@ -56,6 +59,7 @@ fn run_for_scope(
     scope: &str,
     config_dir: &Path,
     requested: &[String],
+    overrides: &HashMap<String, String>,
     reports_root: &Path,
     output: &Output,
 ) -> Result<bool> {
@@ -63,7 +67,7 @@ fn run_for_scope(
     fs::create_dir_all(&report_dir).context("Failed to create generate report directory")?;
     let error_log = report_dir.join("_errors.log");
 
-    let configs = match resolve_configs(config_dir, requested) {
+    let configs = match resolve_configs(root, config_dir, requested, overrides) {
         Ok(configs) => configs,
         Err(err) => {
             append_error(&error_log, &err.to_string())?;
@@ -132,32 +136,62 @@ fn run_for_scope(
     Ok(failures == 0)
 }
 
-fn resolve_configs(config_dir: &Path, requested: &[String]) -> Result<Vec<PathBuf>> {
+fn resolve_configs(
+    root: &Path,
+    config_dir: &Path,
+    requested: &[String],
+    overrides: &HashMap<String, String>,
+) -> Result<Vec<PathBuf>> {
     if !config_dir.is_dir() {
         bail!("Missing config directory: {}", config_dir.display());
     }
 
     let mut configs = Vec::new();
-    if !requested.is_empty() {
-        for raw in requested {
-            let name = raw.trim();
-            if name.is_empty() {
-                continue;
-            }
-            let path = config_dir.join(format!("{name}.yaml"));
-            if !path.is_file() {
-                bail!("Missing generator config: {}", path.display());
-            }
-            configs.push(path);
-        }
+
+    // Determine which generators to use
+    let generators: Vec<String> = if !requested.is_empty() {
+        requested
+            .iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
     } else {
+        // Use all yaml files in config_dir
+        let mut names = Vec::new();
         for entry in fs::read_dir(config_dir).context("Failed to read generator directory")? {
             let entry = entry?;
             let path = entry.path();
             if path.extension().and_then(|ext| ext.to_str()) == Some("yaml") {
-                configs.push(path);
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    names.push(stem.to_string());
+                }
             }
         }
+        names
+    };
+
+    // Resolve each generator's config path
+    for name in &generators {
+        let path = if let Some(override_path) = overrides.get(name) {
+            // User specified an override - resolve relative to root
+            let resolved = root.join(override_path);
+            if !resolved.is_file() {
+                bail!(
+                    "Generator override for '{}' points to invalid path: {}",
+                    name,
+                    override_path
+                );
+            }
+            resolved
+        } else {
+            // Use default from .oav/generators/{scope}/
+            let default_path = config_dir.join(format!("{name}.yaml"));
+            if !default_path.is_file() {
+                bail!("Missing generator config: {}", default_path.display());
+            }
+            default_path
+        };
+        configs.push(path);
     }
 
     configs.sort();
