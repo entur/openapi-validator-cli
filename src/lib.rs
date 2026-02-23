@@ -81,9 +81,11 @@ fn cmd_init(
 ) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
-    util::add_gitignore_entries(root, &[".oav/"])?;
-    if cfg.manage_gitignore && ignore_config {
-        util::add_gitignore_entries(root, &[".oavc"])?;
+    if cfg.manage_gitignore {
+        util::add_gitignore_entries(root, &[".oav/"])?;
+        if ignore_config {
+            util::add_gitignore_entries(root, &[".oavc"])?;
+        }
     }
     if let Some(s) = spec {
         let trimmed = s.trim().to_string();
