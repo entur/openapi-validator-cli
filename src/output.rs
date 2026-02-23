@@ -1,7 +1,7 @@
 use indicatif::{ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::time::Duration;
 
 pub struct Output {
@@ -13,7 +13,7 @@ pub struct Output {
 
 impl Output {
     pub fn new(verbose: bool, quiet: bool) -> Self {
-        let is_tty = atty::is(atty::Stream::Stdout);
+        let is_tty = io::stdout().is_terminal();
         let color = is_tty && env::var_os("NO_COLOR").is_none();
         let progress = is_tty && !verbose && !quiet;
         Self {

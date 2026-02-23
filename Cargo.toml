@@ -13,7 +13,6 @@ path = "src/bin/oav.rs"
 
 [dependencies]
 anyhow = "1.0.100"
-atty = "0.2.14"
 clap = { version = "4.5.54", features = ["derive"] }
 include_dir = "0.7.4"
 indicatif = "0.18.3"
