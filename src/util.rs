@@ -155,7 +155,7 @@ pub fn normalize_spec_path(root: &Path, spec: &str) -> Result<PathBuf> {
     Ok(relative.to_path_buf())
 }
 
-pub fn discover_spec(root: &Path) -> Result<Option<String>> {
+pub fn discover_spec(root: &Path, quiet: bool) -> Result<Option<String>> {
     for name in ["openapi.yaml", "openapi.yml"] {
         let candidate = root.join(name);
         if candidate.is_file() {
@@ -188,7 +188,7 @@ pub fn discover_spec(root: &Path) -> Result<Option<String>> {
     }
 
     matches.sort();
-    select_spec_from_candidates(matches)
+    select_spec_from_candidates(matches, quiet)
 }
 
 fn is_yaml(path: &Path) -> bool {
@@ -230,7 +230,14 @@ fn should_skip_entry(entry: &walkdir::DirEntry) -> bool {
     )
 }
 
-fn select_spec_from_candidates(candidates: Vec<String>) -> Result<Option<String>> {
+fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<Option<String>> {
+    if quiet {
+        bail!(
+            "Multiple OpenAPI specs found but interactive selection is disabled in quiet mode. \
+             Pass --spec explicitly."
+        );
+    }
+
     println!("No default OpenAPI spec found.");
     println!("Select a spec to use:");
     for (idx, path) in candidates.iter().enumerate() {

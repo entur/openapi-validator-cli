@@ -84,7 +84,7 @@ fn cmd_init(
         cfg.spec = Some(s);
     }
     if cfg.spec.is_none() {
-        cfg.spec = util::discover_spec(root)?;
+        cfg.spec = util::discover_spec(root, output.quiet)?;
     }
     if let Some(m) = mode {
         cfg.mode = m;
@@ -150,7 +150,7 @@ fn cmd_validate(
 
     let spec = if let Some(s) = cfg.spec.clone() {
         s
-    } else if let Some(s) = util::discover_spec(root)? {
+    } else if let Some(s) = util::discover_spec(root, output.quiet)? {
         s
     } else {
         bail!("No OpenAPI spec found. Pass --spec or set spec in .oavc.");
@@ -211,7 +211,7 @@ fn cmd_validate(
 
     output.print_summary(passed, failed);
 
-    println!();
+    output.println("");
     output.println_always(&format!(
         "Dashboard: {}",
         root.join(OAV_DIR)

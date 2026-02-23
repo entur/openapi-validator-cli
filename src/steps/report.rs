@@ -50,9 +50,7 @@ pub fn run(root: &Path, output: &Output) -> Result<bool> {
     let html = generate_html(&entries);
 
     if let Err(err) = fs::write(&output_path, html) {
-        if !output.quiet {
-            eprintln!("Report generation failed: {err}");
-        }
+        output.print_error(&format!("Report generation failed: {err}"));
         return Ok(false);
     }
 
