@@ -149,7 +149,9 @@ fn cmd_validate(
 ) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
-    util::add_gitignore_entries(root, &[".oav/"])?;
+    if cfg.manage_gitignore {
+        util::add_gitignore_entries(root, &[".oav/"])?;
+    }
     util::extract_assets(root, &ASSETS)?;
     if let Some(s) = spec_override {
         let trimmed = s.trim().to_string();
