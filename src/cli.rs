@@ -8,8 +8,17 @@ pub struct Cli {
     pub verbose: bool,
     #[arg(short, long, global = true, conflicts_with = "verbose")]
     pub quiet: bool,
+    #[arg(long, global = true, default_value = "auto")]
+    pub color: ColorMode,
     #[command(subcommand)]
     pub command: Commands,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
+pub enum ColorMode {
+    Auto,
+    Always,
+    Never,
 }
 
 #[derive(Subcommand, Debug)]

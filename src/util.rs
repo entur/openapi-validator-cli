@@ -245,17 +245,17 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
         );
     }
 
-    println!("No default OpenAPI spec found.");
-    println!("Select a spec to use:");
+    eprintln!("No default OpenAPI spec found.");
+    eprintln!("Select a spec to use:");
     for (idx, path) in candidates.iter().enumerate() {
-        println!("  {}) {}", idx + 1, path);
+        eprintln!("  {}) {}", idx + 1, path);
     }
-    println!("  q) quit");
+    eprintln!("  q) quit");
 
     let mut input = String::new();
     loop {
-        print!("Select [1-{}] or q: ", candidates.len());
-        io::stdout().flush().context("Failed to flush stdout")?;
+        eprint!("Select [1-{}] or q: ", candidates.len());
+        io::stderr().flush().context("Failed to flush stderr")?;
         input.clear();
         io::stdin()
             .read_line(&mut input)
@@ -269,7 +269,7 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
                 return Ok(Some(candidates[choice - 1].clone()));
             }
         }
-        println!("Invalid selection.");
+        eprintln!("Invalid selection.");
     }
 }
 

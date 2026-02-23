@@ -24,7 +24,7 @@ static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
     let root = env::current_dir().context("Failed to determine current directory")?;
-    let output = Output::new(cli.verbose, cli.quiet);
+    let output = Output::new(cli.verbose, cli.quiet, cli.color);
 
     match cli.command {
         Commands::Init {

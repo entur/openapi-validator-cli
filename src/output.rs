@@ -1,8 +1,11 @@
+use console::Term;
 use indicatif::{ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
 use std::env;
-use std::io::{self, Write};
+use std::io::{self, IsTerminal, Write};
 use std::time::Duration;
+
+use crate::cli::ColorMode;
 
 pub struct Output {
     pub verbose: bool,
@@ -12,9 +15,13 @@ pub struct Output {
 }
 
 impl Output {
-    pub fn new(verbose: bool, quiet: bool) -> Self {
-        let is_tty = atty::is(atty::Stream::Stdout);
-        let color = is_tty && env::var_os("NO_COLOR").is_none();
+    pub fn new(verbose: bool, quiet: bool, color_mode: ColorMode) -> Self {
+        let is_tty = io::stdout().is_terminal();
+        let color = match color_mode {
+            ColorMode::Always => true,
+            ColorMode::Never => false,
+            ColorMode::Auto => is_tty && env::var_os("NO_COLOR").is_none(),
+        };
         let progress = is_tty && !verbose && !quiet;
         Self {
             verbose,
@@ -82,7 +89,9 @@ impl Output {
         }
         let status = self.status_icon(success);
         if self.progress {
-            print!("\r{status}   {label}\x1B[K\n");
+            let term = Term::stdout();
+            let _ = term.clear_line();
+            println!("{status}   {label}");
         } else {
             println!("{status}   {label}");
         }
