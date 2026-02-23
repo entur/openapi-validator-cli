@@ -155,7 +155,9 @@ fn config_set_server_generators_invalid_rejected() {
         .args(["config", "set", "server_generators", "[spring, bogus]"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Unsupported server generator: 'bogus'"));
+        .stderr(predicate::str::contains(
+            "Unsupported server generator: 'bogus'",
+        ));
 }
 
 #[test]
@@ -166,7 +168,9 @@ fn config_set_client_generators_invalid_rejected() {
         .args(["config", "set", "client_generators", "[nope]"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Unsupported client generator: 'nope'"));
+        .stderr(predicate::str::contains(
+            "Unsupported client generator: 'nope'",
+        ));
 }
 
 #[test]
@@ -174,7 +178,12 @@ fn config_set_server_generators_valid_accepted() {
     let temp = TempDir::new().unwrap();
     oav_command()
         .current_dir(temp.path())
-        .args(["config", "set", "server_generators", "[spring, kotlin-spring]"])
+        .args([
+            "config",
+            "set",
+            "server_generators",
+            "[spring, kotlin-spring]",
+        ])
         .assert()
         .success();
 }
@@ -197,7 +206,9 @@ fn config_set_generator_overrides_blank_key_rejected() {
         .args(["config", "set", "generator_overrides. ", "something"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("generator_overrides key cannot be blank"));
+        .stderr(predicate::str::contains(
+            "generator_overrides key cannot be blank",
+        ));
 }
 
 #[test]
@@ -231,7 +242,9 @@ fn validate_invalid_server_generators_rejected() {
         .args(["validate", "--server-generators", "bogus"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Unsupported server generator: 'bogus'"));
+        .stderr(predicate::str::contains(
+            "Unsupported server generator: 'bogus'",
+        ));
 }
 
 #[test]
@@ -243,7 +256,9 @@ fn validate_invalid_client_generators_rejected() {
         .args(["validate", "--client-generators", "nope"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Unsupported client generator: 'nope'"));
+        .stderr(predicate::str::contains(
+            "Unsupported client generator: 'nope'",
+        ));
 }
 
 #[test]
@@ -255,5 +270,21 @@ fn init_invalid_server_generators_rejected() {
         .args(["init", "--server-generators", "fake"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Unsupported server generator: 'fake'"));
+        .stderr(predicate::str::contains(
+            "Unsupported server generator: 'fake'",
+        ));
+}
+
+#[test]
+fn init_invalid_client_generators_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--client-generators", "fake"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Unsupported client generator: 'fake'",
+        ));
 }

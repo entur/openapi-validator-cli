@@ -124,20 +124,28 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
         "generate" => config.generate = parse_bool(&value)?,
         "compile" => config.compile = parse_bool(&value)?,
         "server_generators" | "server-generators" => {
-            let gens = parse_yaml_list(&value)
-                .context("Invalid YAML list for server_generators (example: [spring, kotlin])")?;
+            let gens: Vec<String> = parse_yaml_list(&value)
+                .context("Invalid YAML list for server_generators (example: [spring, kotlin])")?
+                .into_iter()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
             validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
             config.server_generators = gens;
         }
         "client_generators" | "client-generators" => {
-            let gens = parse_yaml_list(&value).context(
-                "Invalid YAML list for client_generators (example: [typescript, swift])",
-            )?;
+            let gens: Vec<String> = parse_yaml_list(&value)
+                .context("Invalid YAML list for client_generators (example: [typescript, swift])")?
+                .into_iter()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
             validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
             config.client_generators = gens;
         }
         "generator_overrides" | "generator-overrides" => {
             if let Some(subkey) = subkey {
+                let subkey = subkey.trim();
                 let trimmed = value.trim().to_string();
                 validate_not_blank("generator_overrides key", subkey)?;
                 if trimmed.is_empty() {

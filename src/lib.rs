@@ -95,12 +95,20 @@ fn cmd_init(
         cfg.mode = m;
     }
     if let Some(gens) = server_generators {
-        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        let gens: Vec<String> = gens
+            .iter()
+            .map(|g| g.trim().to_string())
+            .filter(|g| !g.is_empty())
+            .collect();
         config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = client_generators {
-        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        let gens: Vec<String> = gens
+            .iter()
+            .map(|g| g.trim().to_string())
+            .filter(|g| !g.is_empty())
+            .collect();
         config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
         cfg.client_generators = gens;
     }
@@ -146,12 +154,20 @@ fn cmd_validate(
         cfg.mode = m;
     }
     if let Some(gens) = server_generators {
-        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        let gens: Vec<String> = gens
+            .iter()
+            .map(|g| g.trim().to_string())
+            .filter(|g| !g.is_empty())
+            .collect();
         config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = client_generators {
-        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        let gens: Vec<String> = gens
+            .iter()
+            .map(|g| g.trim().to_string())
+            .filter(|g| !g.is_empty())
+            .collect();
         config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
         cfg.client_generators = gens;
     }
