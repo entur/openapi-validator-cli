@@ -140,6 +140,9 @@ pub fn remove_gitignore_entries(root: &Path, entries: &[&str]) -> Result<()> {
 // Spec discovery
 
 pub fn normalize_spec_path(root: &Path, spec: &str) -> Result<PathBuf> {
+    if spec.trim().is_empty() {
+        bail!("Spec path cannot be blank");
+    }
     let spec_path = PathBuf::from(spec);
     let absolute = if spec_path.is_absolute() {
         spec_path

@@ -16,6 +16,7 @@ use std::process::Command;
 use cli::{Cli, Commands, ConfigCommand};
 use config::{CONFIG_FILE, Config};
 use output::Output;
+use steps::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
 use util::OAV_DIR;
 
 static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
@@ -81,7 +82,11 @@ fn cmd_init(
         util::add_gitignore_entries(root, &[".oavc"])?;
     }
     if let Some(s) = spec {
-        cfg.spec = Some(s);
+        let trimmed = s.trim().to_string();
+        if trimmed.is_empty() {
+            bail!("--spec cannot be blank");
+        }
+        cfg.spec = Some(trimmed);
     }
     if cfg.spec.is_none() {
         cfg.spec = util::discover_spec(root)?;
@@ -90,9 +95,13 @@ fn cmd_init(
         cfg.mode = m;
     }
     if let Some(gens) = server_generators {
+        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = client_generators {
+        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
         cfg.client_generators = gens;
     }
 
@@ -127,15 +136,23 @@ fn cmd_validate(
     util::add_gitignore_entries(root, &[".oav/"])?;
     util::extract_assets(root, &ASSETS)?;
     if let Some(s) = spec_override {
-        cfg.spec = Some(s);
+        let trimmed = s.trim().to_string();
+        if trimmed.is_empty() {
+            bail!("--spec cannot be blank");
+        }
+        cfg.spec = Some(trimmed);
     }
     if let Some(m) = mode_override {
         cfg.mode = m;
     }
     if let Some(gens) = server_generators {
+        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = client_generators {
+        let gens: Vec<String> = gens.iter().map(|g| g.trim().to_string()).filter(|g| !g.is_empty()).collect();
+        config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
         cfg.client_generators = gens;
     }
     if skip_lint {

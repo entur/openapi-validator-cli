@@ -9,7 +9,7 @@ use crate::docker;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_status, write_log_header};
 
-const SUPPORTED_SERVER_GENERATORS: [&str; 6] = [
+pub const SUPPORTED_SERVER_GENERATORS: [&str; 6] = [
     "aspnetcore",
     "go-server",
     "kotlin-spring",
@@ -18,7 +18,7 @@ const SUPPORTED_SERVER_GENERATORS: [&str; 6] = [
     "typescript-nestjs",
 ];
 
-const SUPPORTED_CLIENT_GENERATORS: [&str; 8] = [
+pub const SUPPORTED_CLIENT_GENERATORS: [&str; 8] = [
     "csharp",
     "go",
     "java",

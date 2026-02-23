@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use predicates::prelude::*;
 use std::error::Error;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -109,4 +110,150 @@ fn inheritance_spec_lints() -> Result<(), Box<dyn Error>> {
     let status = fs::read_to_string(root.join(".oav").join("status.tsv"))?;
     assert!(status.contains("lint\tspec\tredocly\tok"));
     Ok(())
+}
+
+// ── Input validation tests (no Docker required) ─────────────────────────
+
+#[test]
+fn config_set_spec_blank_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "spec", "   "])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("spec cannot be blank"));
+}
+
+#[test]
+fn config_set_generator_image_blank_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "generator_image", ""])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("generator_image cannot be blank"));
+}
+
+#[test]
+fn config_set_redocly_image_blank_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "redocly_image", "  "])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("redocly_image cannot be blank"));
+}
+
+#[test]
+fn config_set_server_generators_invalid_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "server_generators", "[spring, bogus]"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported server generator: 'bogus'"));
+}
+
+#[test]
+fn config_set_client_generators_invalid_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "client_generators", "[nope]"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported client generator: 'nope'"));
+}
+
+#[test]
+fn config_set_server_generators_valid_accepted() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "server_generators", "[spring, kotlin-spring]"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_set_client_generators_valid_accepted() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "client_generators", "[go, python]"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_set_generator_overrides_blank_key_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "generator_overrides. ", "something"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("generator_overrides key cannot be blank"));
+}
+
+#[test]
+fn init_blank_spec_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--spec", "  "])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--spec cannot be blank"));
+}
+
+#[test]
+fn validate_blank_spec_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--spec", ""])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--spec cannot be blank"));
+}
+
+#[test]
+fn validate_invalid_server_generators_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--server-generators", "bogus"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported server generator: 'bogus'"));
+}
+
+#[test]
+fn validate_invalid_client_generators_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--client-generators", "nope"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported client generator: 'nope'"));
+}
+
+#[test]
+fn init_invalid_server_generators_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--server-generators", "fake"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported server generator: 'fake'"));
 }

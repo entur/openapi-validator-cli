@@ -5,6 +5,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::cli::Mode;
+use crate::steps::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
 
 pub const CONFIG_FILE: &str = ".oavc";
 
@@ -114,26 +115,37 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
     let (base, subkey) = parse_key(key);
 
     match base {
-        "spec" => config.spec = Some(value),
+        "spec" => {
+            validate_not_blank("spec", &value)?;
+            config.spec = Some(value.trim().to_string());
+        }
         "mode" => config.mode = parse_mode(&value)?,
         "lint" => config.lint = parse_bool(&value)?,
         "generate" => config.generate = parse_bool(&value)?,
         "compile" => config.compile = parse_bool(&value)?,
         "server_generators" | "server-generators" => {
-            config.server_generators = parse_yaml_list(&value)
+            let gens = parse_yaml_list(&value)
                 .context("Invalid YAML list for server_generators (example: [spring, kotlin])")?;
+            validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
+            config.server_generators = gens;
         }
         "client_generators" | "client-generators" => {
-            config.client_generators = parse_yaml_list(&value).context(
+            let gens = parse_yaml_list(&value).context(
                 "Invalid YAML list for client_generators (example: [typescript, swift])",
             )?;
+            validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
+            config.client_generators = gens;
         }
         "generator_overrides" | "generator-overrides" => {
             if let Some(subkey) = subkey {
-                if value.is_empty() {
+                let trimmed = value.trim().to_string();
+                validate_not_blank("generator_overrides key", subkey)?;
+                if trimmed.is_empty() {
                     config.generator_overrides.remove(subkey);
                 } else {
-                    config.generator_overrides.insert(subkey.to_string(), value);
+                    config
+                        .generator_overrides
+                        .insert(subkey.to_string(), trimmed);
                 }
             } else {
                 config.generator_overrides = parse_yaml_map(&value).context(
@@ -141,10 +153,39 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 )?;
             }
         }
-        "generator_image" | "generator-image" => config.generator_image = value,
-        "redocly_image" | "redocly-image" => config.redocly_image = value,
+        "generator_image" | "generator-image" => {
+            validate_not_blank("generator_image", &value)?;
+            config.generator_image = value.trim().to_string();
+        }
+        "redocly_image" | "redocly-image" => {
+            validate_not_blank("redocly_image", &value)?;
+            config.redocly_image = value.trim().to_string();
+        }
         "manage_gitignore" | "manage-gitignore" => config.manage_gitignore = parse_bool(&value)?,
         _ => bail!("Unknown config key: {key}"),
+    }
+    Ok(())
+}
+
+fn validate_not_blank(field: &str, value: &str) -> Result<()> {
+    if value.trim().is_empty() {
+        bail!("{field} cannot be blank");
+    }
+    Ok(())
+}
+
+pub fn validate_generators(scope: &str, generators: &[String], supported: &[&str]) -> Result<()> {
+    for generator in generators {
+        let name = generator.trim();
+        if name.is_empty() {
+            continue;
+        }
+        if !supported.contains(&name) {
+            bail!(
+                "Unsupported {scope} generator: '{name}'. Valid options: {}",
+                supported.join(", ")
+            );
+        }
     }
     Ok(())
 }
