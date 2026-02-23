@@ -50,6 +50,8 @@ pub fn run() -> Result<()> {
             skip_lint,
             skip_generate,
             skip_compile,
+            linter,
+            ruleset,
         } => cmd_validate(
             &root,
             &output,
@@ -60,6 +62,8 @@ pub fn run() -> Result<()> {
             skip_lint,
             skip_generate,
             skip_compile,
+            linter,
+            ruleset,
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
         Commands::Clean => cmd_clean(&root, &output),
@@ -138,6 +142,8 @@ fn cmd_validate(
     skip_lint: bool,
     skip_generate: bool,
     skip_compile: bool,
+    linter_override: Option<cli::Linter>,
+    ruleset_override: Option<String>,
 ) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
@@ -180,6 +186,12 @@ fn cmd_validate(
     if skip_compile {
         cfg.compile = false;
     }
+    if let Some(l) = linter_override {
+        cfg.linter = l;
+    }
+    if let Some(r) = ruleset_override {
+        cfg.spectral_ruleset = r;
+    }
 
     let spec = if let Some(s) = cfg.spec.clone() {
         s
@@ -201,9 +213,9 @@ fn cmd_validate(
 
     let mut failures = 0;
 
-    if cfg.lint {
+    if cfg.lint && cfg.linter != cli::Linter::None {
         let success = steps::run_step(output, "Lint", true, true, || {
-            steps::lint(root, &spec_path, &cfg.redocly_image, output)
+            steps::lint(root, &spec_path, &cfg, output)
         })?;
         if !success {
             failures += 1;

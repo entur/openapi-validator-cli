@@ -50,6 +50,10 @@ pub enum Commands {
         skip_generate: bool,
         #[arg(long)]
         skip_compile: bool,
+        #[arg(long)]
+        linter: Option<Linter>,
+        #[arg(long)]
+        ruleset: Option<String>,
     },
     Config {
         #[command(subcommand)]
@@ -89,6 +93,24 @@ impl Mode {
             Mode::Server => "server",
             Mode::Client => "client",
             Mode::Both => "both",
+        }
+    }
+}
+
+#[derive(ValueEnum, Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Linter {
+    Spectral,
+    Redocly,
+    None,
+}
+
+impl Linter {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Linter::Spectral => "spectral",
+            Linter::Redocly => "redocly",
+            Linter::None => "none",
         }
     }
 }

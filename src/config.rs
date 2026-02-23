@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 
-use crate::cli::Mode;
+use crate::cli::{Linter, Mode};
 use crate::steps::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
 
 pub const CONFIG_FILE: &str = ".oavc";
@@ -22,6 +22,10 @@ pub struct Config {
     pub generator_overrides: HashMap<String, String>,
     pub generator_image: String,
     pub redocly_image: String,
+    pub linter: Linter,
+    pub spectral_image: String,
+    pub spectral_ruleset: String,
+    pub spectral_fail_severity: String,
     pub manage_gitignore: bool,
 }
 
@@ -38,6 +42,12 @@ impl Default for Config {
             generator_overrides: HashMap::new(),
             generator_image: "openapitools/openapi-generator-cli:v7.17.0".to_string(),
             redocly_image: "redocly/cli:1.25.5".to_string(),
+            linter: Linter::Spectral,
+            spectral_image: "stoplight/spectral:6".to_string(),
+            spectral_ruleset:
+                "https://raw.githubusercontent.com/entur/api-guidelines/refs/tags/v2/.spectral.yml"
+                    .to_string(),
+            spectral_fail_severity: "error".to_string(),
             manage_gitignore: true,
         }
     }
@@ -90,6 +100,12 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
         }
         "generator_image" | "generator-image" => println!("{}", config.generator_image),
         "redocly_image" | "redocly-image" => println!("{}", config.redocly_image),
+        "linter" => println!("{}", config.linter.as_str()),
+        "spectral_image" | "spectral-image" => println!("{}", config.spectral_image),
+        "spectral_ruleset" | "spectral-ruleset" => println!("{}", config.spectral_ruleset),
+        "spectral_fail_severity" | "spectral-fail-severity" => {
+            println!("{}", config.spectral_fail_severity)
+        }
         "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
         _ => bail!("Unknown config key: {key}"),
     }
@@ -169,6 +185,18 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
             validate_not_blank("redocly_image", &value)?;
             config.redocly_image = value.trim().to_string();
         }
+        "linter" => config.linter = parse_linter(&value)?,
+        "spectral_image" | "spectral-image" => {
+            validate_not_blank("spectral_image", &value)?;
+            config.spectral_image = value.trim().to_string();
+        }
+        "spectral_ruleset" | "spectral-ruleset" => {
+            validate_not_blank("spectral_ruleset", &value)?;
+            config.spectral_ruleset = value.trim().to_string();
+        }
+        "spectral_fail_severity" | "spectral-fail-severity" => {
+            config.spectral_fail_severity = parse_fail_severity(&value)?;
+        }
         "manage_gitignore" | "manage-gitignore" => config.manage_gitignore = parse_bool(&value)?,
         _ => bail!("Unknown config key: {key}"),
     }
@@ -204,6 +232,23 @@ fn parse_mode(raw: &str) -> Result<Mode> {
         "client" => Ok(Mode::Client),
         "both" => Ok(Mode::Both),
         _ => bail!("Invalid mode: {raw} (expected server, client, or both)"),
+    }
+}
+
+fn parse_linter(raw: &str) -> Result<Linter> {
+    match raw.trim().to_lowercase().as_str() {
+        "spectral" => Ok(Linter::Spectral),
+        "redocly" => Ok(Linter::Redocly),
+        "none" => Ok(Linter::None),
+        _ => bail!("Invalid linter: {raw} (expected spectral, redocly, or none)"),
+    }
+}
+
+fn parse_fail_severity(raw: &str) -> Result<String> {
+    let trimmed = raw.trim().to_lowercase();
+    match trimmed.as_str() {
+        "error" | "warn" | "info" | "hint" => Ok(trimmed),
+        _ => bail!("Invalid fail severity: {raw} (expected error, warn, info, or hint)"),
     }
 }
 
