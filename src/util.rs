@@ -231,6 +231,10 @@ fn should_skip_entry(entry: &walkdir::DirEntry) -> bool {
 }
 
 fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<Option<String>> {
+    if candidates.len() == 1 {
+        return Ok(Some(candidates.into_iter().next().unwrap()));
+    }
+
     if quiet {
         bail!(
             "Multiple OpenAPI specs found but interactive selection is disabled in quiet mode. \
