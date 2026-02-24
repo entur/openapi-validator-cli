@@ -4,7 +4,6 @@ mod lint;
 mod report;
 
 pub use compile::run as compile;
-pub use compile::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
 pub use generate::run as generate;
 pub use lint::run as lint;
 pub use report::{load_status_entries, run as report};

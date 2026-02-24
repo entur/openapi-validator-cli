@@ -5,6 +5,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use crate::output::Output;
 
@@ -48,7 +49,12 @@ pub fn user_flag() -> String {
     }
 }
 
-pub fn run_with_logging(command: &mut Command, log_path: &Path, output: &Output) -> Result<bool> {
+pub fn run_with_logging(
+    command: &mut Command,
+    log_path: &Path,
+    output: &Output,
+    timeout: Duration,
+) -> Result<bool> {
     if output.verbose {
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
         let mut child = command.spawn().context("Failed to start Docker command")?;
@@ -67,10 +73,10 @@ pub fn run_with_logging(command: &mut Command, log_path: &Path, output: &Output)
         let err_log = Arc::clone(&log);
         let err_handle = thread::spawn(move || stream_output(stderr, io::stderr(), err_log));
 
-        let status = child.wait().context("Failed to wait for command")?;
+        let success = wait_with_timeout(&mut child, timeout)?;
         let _ = out_handle.join();
         let _ = err_handle.join();
-        Ok(status.success())
+        Ok(success)
     } else {
         let log_file = OpenOptions::new()
             .create(true)
@@ -81,8 +87,23 @@ pub fn run_with_logging(command: &mut Command, log_path: &Path, output: &Output)
         command
             .stdout(Stdio::from(log_file))
             .stderr(Stdio::from(log_err));
-        let status = command.status().context("Failed to run Docker command")?;
-        Ok(status.success())
+        let mut child = command.spawn().context("Failed to start Docker command")?;
+        let success = wait_with_timeout(&mut child, timeout)?;
+        Ok(success)
+    }
+}
+
+fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> Result<bool> {
+    let start = Instant::now();
+    loop {
+        match child.try_wait().context("Failed to check process status")? {
+            Some(status) => return Ok(status.success()),
+            None if start.elapsed() >= timeout => {
+                let _ = child.kill();
+                bail!("Docker command timed out after {}s", timeout.as_secs());
+            }
+            None => thread::sleep(Duration::from_millis(500)),
+        }
     }
 }
 
@@ -100,7 +121,7 @@ fn stream_output<R: Read + Send + 'static>(
         {
             let mut file = log
                 .lock()
-                .map_err(|_| io::Error::new(io::ErrorKind::Other, "Log file lock poisoned"))?;
+                .map_err(|_| io::Error::other("Log file lock poisoned"))?;
             file.write_all(&buffer[..count])?;
         }
         writer.write_all(&buffer[..count])?;

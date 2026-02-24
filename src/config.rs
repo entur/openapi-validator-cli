@@ -5,7 +5,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::cli::{Linter, Mode};
-use crate::steps::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
+use crate::generators;
 
 pub const CONFIG_FILE: &str = ".oavc";
 
@@ -27,6 +27,8 @@ pub struct Config {
     pub spectral_ruleset: String,
     pub spectral_fail_severity: String,
     pub manage_gitignore: bool,
+    pub docker_timeout: u64,
+    pub search_depth: usize,
 }
 
 impl Default for Config {
@@ -49,6 +51,8 @@ impl Default for Config {
                     .to_string(),
             spectral_fail_severity: "error".to_string(),
             manage_gitignore: true,
+            docker_timeout: 300,
+            search_depth: 4,
         }
     }
 }
@@ -107,6 +111,8 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
             println!("{}", config.spectral_fail_severity)
         }
         "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
+        "docker_timeout" | "docker-timeout" => println!("{}", config.docker_timeout),
+        "search_depth" | "search-depth" => println!("{}", config.search_depth),
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
@@ -146,7 +152,7 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
+            validate_generators("server", &gens, &generators::server_names())?;
             config.server_generators = gens;
         }
         "client_generators" | "client-generators" => {
@@ -156,7 +162,7 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
+            validate_generators("client", &gens, &generators::client_names())?;
             config.client_generators = gens;
         }
         "generator_overrides" | "generator-overrides" => {
@@ -198,6 +204,24 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
             config.spectral_fail_severity = parse_fail_severity(&value)?;
         }
         "manage_gitignore" | "manage-gitignore" => config.manage_gitignore = parse_bool(&value)?,
+        "docker_timeout" | "docker-timeout" => {
+            let secs: u64 = value.trim().parse().map_err(|_| {
+                anyhow::anyhow!("Invalid docker_timeout: {value} (expected positive integer)")
+            })?;
+            if secs == 0 {
+                bail!("docker_timeout must be greater than 0");
+            }
+            config.docker_timeout = secs;
+        }
+        "search_depth" | "search-depth" => {
+            let depth: usize = value.trim().parse().map_err(|_| {
+                anyhow::anyhow!("Invalid search_depth: {value} (expected positive integer)")
+            })?;
+            if depth == 0 {
+                bail!("search_depth must be greater than 0");
+            }
+            config.search_depth = depth;
+        }
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())

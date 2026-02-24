@@ -34,6 +34,8 @@ pub enum Commands {
         client_generators: Option<Vec<String>>,
         #[arg(long)]
         ignore_config: bool,
+        #[arg(long)]
+        search_depth: Option<usize>,
     },
     Validate {
         #[arg(long)]
@@ -54,6 +56,10 @@ pub enum Commands {
         linter: Option<Linter>,
         #[arg(long)]
         ruleset: Option<String>,
+        #[arg(long)]
+        docker_timeout: Option<u64>,
+        #[arg(long)]
+        search_depth: Option<usize>,
     },
     Config {
         #[command(subcommand)]

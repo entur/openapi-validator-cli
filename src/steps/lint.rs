@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use crate::cli::Linter;
 use crate::config::Config;
@@ -10,14 +11,21 @@ use crate::output::Output;
 use crate::util::{OAV_DIR, append_status, to_posix_path, write_log_header};
 
 pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
+    let timeout = Duration::from_secs(config.docker_timeout);
     match config.linter {
-        Linter::Spectral => run_spectral(root, spec_path, config, output),
-        Linter::Redocly => run_redocly(root, spec_path, config, output),
+        Linter::Spectral => run_spectral(root, spec_path, config, output, timeout),
+        Linter::Redocly => run_redocly(root, spec_path, config, output, timeout),
         Linter::None => Ok(true),
     }
 }
 
-fn run_spectral(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
+fn run_spectral(
+    root: &Path,
+    spec_path: &Path,
+    config: &Config,
+    output: &Output,
+    timeout: Duration,
+) -> Result<bool> {
     let reports_dir = root.join(OAV_DIR).join("reports").join("lint");
     fs::create_dir_all(&reports_dir).context("Failed to create lint reports directory")?;
     let log_path = reports_dir.join("spectral.log");
@@ -47,7 +55,7 @@ fn run_spectral(root: &Path, spec_path: &Path, config: &Config, output: &Output)
         .arg("--fail-severity")
         .arg(fail_severity);
 
-    let success = docker::run_with_logging(&mut command, &log_path, output)?;
+    let success = docker::run_with_logging(&mut command, &log_path, output, timeout)?;
     append_status(
         root,
         "lint",
@@ -59,7 +67,13 @@ fn run_spectral(root: &Path, spec_path: &Path, config: &Config, output: &Output)
     Ok(success)
 }
 
-fn run_redocly(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
+fn run_redocly(
+    root: &Path,
+    spec_path: &Path,
+    config: &Config,
+    output: &Output,
+    timeout: Duration,
+) -> Result<bool> {
     let reports_dir = root.join(OAV_DIR).join("reports").join("lint");
     fs::create_dir_all(&reports_dir).context("Failed to create lint reports directory")?;
     let log_path = reports_dir.join("redocly.log");
@@ -86,7 +100,7 @@ fn run_redocly(root: &Path, spec_path: &Path, config: &Config, output: &Output) 
         .arg("lint")
         .arg(spec);
 
-    let success = docker::run_with_logging(&mut command, &log_path, output)?;
+    let success = docker::run_with_logging(&mut command, &log_path, output, timeout)?;
     append_status(
         root,
         "lint",

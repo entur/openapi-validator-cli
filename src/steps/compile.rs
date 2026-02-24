@@ -2,32 +2,14 @@ use anyhow::{Context, Result, bail};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use crate::cli::Mode;
 use crate::config::Config;
 use crate::docker;
+use crate::generators;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_status, write_log_header};
-
-pub const SUPPORTED_SERVER_GENERATORS: [&str; 6] = [
-    "aspnetcore",
-    "go-server",
-    "kotlin-spring",
-    "python-fastapi",
-    "spring",
-    "typescript-nestjs",
-];
-
-pub const SUPPORTED_CLIENT_GENERATORS: [&str; 8] = [
-    "csharp",
-    "go",
-    "java",
-    "kotlin",
-    "python",
-    "typescript-axios",
-    "typescript-fetch",
-    "typescript-node",
-];
 
 struct Task {
     scope: String,
@@ -38,6 +20,7 @@ struct Task {
 pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
     let reports_root = root.join(OAV_DIR).join("reports").join("compile");
     fs::create_dir_all(&reports_root).context("Failed to create compile reports directory")?;
+    let timeout = Duration::from_secs(config.docker_timeout);
 
     let mut tasks = Vec::new();
 
@@ -45,8 +28,7 @@ pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
         tasks.extend(resolve_tasks(
             "server",
             &config.server_generators,
-            &SUPPORTED_SERVER_GENERATORS,
-            "build-",
+            generators::SERVER_GENERATORS,
         )?);
     }
 
@@ -54,8 +36,7 @@ pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
         tasks.extend(resolve_tasks(
             "client",
             &config.client_generators,
-            &SUPPORTED_CLIENT_GENERATORS,
-            "build-client-",
+            generators::CLIENT_GENERATORS,
         )?);
     }
 
@@ -86,7 +67,7 @@ pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
             .arg("--rm")
             .arg(&task.service);
 
-        let success = docker::run_with_logging(&mut command, &log_path, output)?;
+        let success = docker::run_with_logging(&mut command, &log_path, output, timeout)?;
         append_status(
             root,
             "compile",
@@ -107,8 +88,7 @@ pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
 fn resolve_tasks(
     scope: &str,
     requested: &[String],
-    supported: &[&str],
-    prefix: &str,
+    defs: &[generators::GeneratorDef],
 ) -> Result<Vec<Task>> {
     let names: Vec<String> = if !requested.is_empty() {
         let filtered: Vec<String> = requested
@@ -121,17 +101,18 @@ fn resolve_tasks(
         }
         filtered
     } else {
-        supported.iter().map(|name| (*name).to_string()).collect()
+        defs.iter().map(|d| d.name.to_string()).collect()
     };
 
     let mut tasks = Vec::new();
     for name in names {
-        if !supported.contains(&name.as_str()) {
-            bail!("Unsupported {scope} generator for compile: {name}");
-        }
+        let def = defs
+            .iter()
+            .find(|d| d.name == name)
+            .ok_or_else(|| anyhow::anyhow!("Unsupported {scope} generator for compile: {name}"))?;
         tasks.push(Task {
             scope: scope.to_string(),
-            service: format!("{prefix}{name}"),
+            service: format!("{}{}", def.compile_prefix, name),
             name,
         });
     }

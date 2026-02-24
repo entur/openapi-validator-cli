@@ -1,6 +1,7 @@
 mod cli;
 mod config;
 mod docker;
+mod generators;
 mod output;
 mod steps;
 mod util;
@@ -16,10 +17,32 @@ use std::process::Command;
 use cli::{Cli, Commands, ConfigCommand};
 use config::{CONFIG_FILE, Config};
 use output::Output;
-use steps::{SUPPORTED_CLIENT_GENERATORS, SUPPORTED_SERVER_GENERATORS};
 use util::OAV_DIR;
 
 static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
+
+struct InitArgs {
+    spec: Option<String>,
+    mode: Option<cli::Mode>,
+    server_generators: Option<Vec<String>>,
+    client_generators: Option<Vec<String>>,
+    ignore_config: bool,
+    search_depth: Option<usize>,
+}
+
+struct ValidateArgs {
+    spec: Option<String>,
+    mode: Option<cli::Mode>,
+    server_generators: Option<Vec<String>>,
+    client_generators: Option<Vec<String>>,
+    skip_lint: bool,
+    skip_generate: bool,
+    skip_compile: bool,
+    linter: Option<cli::Linter>,
+    ruleset: Option<String>,
+    docker_timeout: Option<u64>,
+    search_depth: Option<usize>,
+}
 
 pub fn run() -> Result<()> {
     let cli = Cli::parse();
@@ -33,14 +56,18 @@ pub fn run() -> Result<()> {
             server_generators,
             client_generators,
             ignore_config,
+            search_depth,
         } => cmd_init(
             &root,
             &output,
-            spec,
-            mode,
-            server_generators,
-            client_generators,
-            ignore_config,
+            InitArgs {
+                spec,
+                mode,
+                server_generators,
+                client_generators,
+                ignore_config,
+                search_depth,
+            },
         ),
         Commands::Validate {
             spec,
@@ -52,42 +79,43 @@ pub fn run() -> Result<()> {
             skip_compile,
             linter,
             ruleset,
+            docker_timeout,
+            search_depth,
         } => cmd_validate(
             &root,
             &output,
-            spec,
-            mode,
-            server_generators,
-            client_generators,
-            skip_lint,
-            skip_generate,
-            skip_compile,
-            linter,
-            ruleset,
+            ValidateArgs {
+                spec,
+                mode,
+                server_generators,
+                client_generators,
+                skip_lint,
+                skip_generate,
+                skip_compile,
+                linter,
+                ruleset,
+                docker_timeout,
+                search_depth,
+            },
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
         Commands::Clean => cmd_clean(&root, &output),
     }
 }
 
-fn cmd_init(
-    root: &Path,
-    output: &Output,
-    spec: Option<String>,
-    mode: Option<cli::Mode>,
-    server_generators: Option<Vec<String>>,
-    client_generators: Option<Vec<String>>,
-    ignore_config: bool,
-) -> Result<()> {
+fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
     if cfg.manage_gitignore {
         util::add_gitignore_entries(root, &[".oav/"])?;
-        if ignore_config {
+        if args.ignore_config {
             util::add_gitignore_entries(root, &[".oavc"])?;
         }
     }
-    if let Some(s) = spec {
+    if let Some(d) = args.search_depth {
+        cfg.search_depth = d;
+    }
+    if let Some(s) = args.spec {
         let trimmed = s.trim().to_string();
         if trimmed.is_empty() {
             bail!("--spec cannot be blank");
@@ -95,27 +123,27 @@ fn cmd_init(
         cfg.spec = Some(trimmed);
     }
     if cfg.spec.is_none() {
-        cfg.spec = util::discover_spec(root, output.quiet)?;
+        cfg.spec = util::discover_spec(root, output.quiet, cfg.search_depth)?;
     }
-    if let Some(m) = mode {
+    if let Some(m) = args.mode {
         cfg.mode = m;
     }
-    if let Some(gens) = server_generators {
+    if let Some(gens) = args.server_generators {
         let gens: Vec<String> = gens
             .iter()
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
+        config::validate_generators("server", &gens, &generators::server_names())?;
         cfg.server_generators = gens;
     }
-    if let Some(gens) = client_generators {
+    if let Some(gens) = args.client_generators {
         let gens: Vec<String> = gens
             .iter()
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
+        config::validate_generators("client", &gens, &generators::client_names())?;
         cfg.client_generators = gens;
     }
 
@@ -134,72 +162,66 @@ fn cmd_init(
     Ok(())
 }
 
-fn cmd_validate(
-    root: &Path,
-    output: &Output,
-    spec_override: Option<String>,
-    mode_override: Option<cli::Mode>,
-    server_generators: Option<Vec<String>>,
-    client_generators: Option<Vec<String>>,
-    skip_lint: bool,
-    skip_generate: bool,
-    skip_compile: bool,
-    linter_override: Option<cli::Linter>,
-    ruleset_override: Option<String>,
-) -> Result<()> {
+fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> {
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
     if cfg.manage_gitignore {
         util::add_gitignore_entries(root, &[".oav/"])?;
     }
     util::extract_assets(root, &ASSETS)?;
-    if let Some(s) = spec_override {
+    if let Some(t) = args.docker_timeout {
+        cfg.docker_timeout = t;
+    }
+    if let Some(d) = args.search_depth {
+        cfg.search_depth = d;
+    }
+    if let Some(s) = args.spec {
         let trimmed = s.trim().to_string();
         if trimmed.is_empty() {
             bail!("--spec cannot be blank");
         }
         cfg.spec = Some(trimmed);
     }
-    if let Some(m) = mode_override {
+    if let Some(m) = args.mode {
         cfg.mode = m;
     }
-    if let Some(gens) = server_generators {
+    if let Some(gens) = args.server_generators {
         let gens: Vec<String> = gens
             .iter()
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("server", &gens, &SUPPORTED_SERVER_GENERATORS)?;
+        config::validate_generators("server", &gens, &generators::server_names())?;
         cfg.server_generators = gens;
     }
-    if let Some(gens) = client_generators {
+    if let Some(gens) = args.client_generators {
         let gens: Vec<String> = gens
             .iter()
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("client", &gens, &SUPPORTED_CLIENT_GENERATORS)?;
+        config::validate_generators("client", &gens, &generators::client_names())?;
         cfg.client_generators = gens;
     }
-    if skip_lint {
+    if args.skip_lint {
         cfg.lint = false;
     }
-    if skip_generate {
+    if args.skip_generate {
         cfg.generate = false;
     }
-    if skip_compile {
+    if args.skip_compile {
         cfg.compile = false;
     }
-    if let Some(l) = linter_override {
+    if let Some(l) = args.linter {
         cfg.linter = l;
     }
-    if let Some(r) = ruleset_override {
+    if let Some(r) = args.ruleset {
         cfg.spectral_ruleset = r;
     }
 
     let spec = if let Some(s) = cfg.spec.clone() {
         s
-    } else if let Some(s) = util::discover_spec(root, output.quiet)? {
+    } else if let Some(s) = util::discover_spec(root, output.quiet, cfg.search_depth)? {
         s
     } else {
         bail!("No OpenAPI spec found. Pass --spec or set spec in .oavc.");

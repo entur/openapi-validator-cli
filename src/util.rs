@@ -158,7 +158,7 @@ pub fn normalize_spec_path(root: &Path, spec: &str) -> Result<PathBuf> {
     Ok(relative.to_path_buf())
 }
 
-pub fn discover_spec(root: &Path, quiet: bool) -> Result<Option<String>> {
+pub fn discover_spec(root: &Path, quiet: bool, max_depth: usize) -> Result<Option<String>> {
     for name in ["openapi.yaml", "openapi.yml"] {
         let candidate = root.join(name);
         if candidate.is_file() {
@@ -168,7 +168,7 @@ pub fn discover_spec(root: &Path, quiet: bool) -> Result<Option<String>> {
 
     let mut matches = Vec::new();
     let walker = walkdir::WalkDir::new(root)
-        .max_depth(4)
+        .max_depth(max_depth)
         .follow_links(false)
         .into_iter()
         .filter_entry(|entry| !should_skip_entry(entry));
@@ -264,10 +264,11 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
         if trimmed.eq_ignore_ascii_case("q") {
             return Ok(None);
         }
-        if let Ok(choice) = trimmed.parse::<usize>() {
-            if choice >= 1 && choice <= candidates.len() {
-                return Ok(Some(candidates[choice - 1].clone()));
-            }
+        if let Ok(choice) = trimmed.parse::<usize>()
+            && choice >= 1
+            && choice <= candidates.len()
+        {
+            return Ok(Some(candidates[choice - 1].clone()));
         }
         eprintln!("Invalid selection.");
     }
