@@ -61,6 +61,42 @@ fn invalid_linter_flag_rejected() {
         .stderr(predicate::str::contains("invalid value 'eslint'"));
 }
 
+#[test]
+fn docker_timeout_zero_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--docker-timeout", "0"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("must be greater than 0"));
+}
+
+#[test]
+fn search_depth_zero_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--search-depth", "0"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("must be greater than 0"));
+}
+
+#[test]
+fn infra_error_exits_with_code_2() {
+    let temp = TempDir::new().unwrap();
+    // No spec and no .oavc → infra error
+    let output = oav_command()
+        .current_dir(temp.path())
+        .args(["validate"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+}
+
 // ── Docker integration tests ────────────────────────────────────────────
 
 #[test]

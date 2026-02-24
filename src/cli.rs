@@ -81,6 +81,10 @@ pub enum ConfigCommand {
     },
     Edit,
     Print,
+    /// Validate the current config file
+    Validate,
+    /// List all supported generators
+    ListGenerators,
     Ignore,
     Unignore,
 }

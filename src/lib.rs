@@ -6,6 +6,10 @@ mod output;
 mod steps;
 mod util;
 
+pub const EXIT_SUCCESS: i32 = 0;
+pub const EXIT_VALIDATION_FAILURE: i32 = 1;
+pub const EXIT_INFRA_ERROR: i32 = 2;
+
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use include_dir::{Dir, include_dir};
@@ -156,6 +160,7 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     let spec_path = util::normalize_spec_path(root, &spec)?;
     cfg.spec = Some(spec_path.to_string_lossy().to_string());
 
+    config::validate(&cfg)?;
     config::write(root, &cfg)?;
     util::extract_assets(root, &ASSETS)?;
 
@@ -243,6 +248,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
         docker::ensure_available()?;
     }
 
+    config::validate(&cfg)?;
     util::prepare_runtime_dirs(root)?;
     config::write(root, &cfg)?;
 
@@ -302,7 +308,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
 
     if failures > 0 {
         output.print_error("Validation failed. See dashboard for details.");
-        std::process::exit(1);
+        std::process::exit(EXIT_VALIDATION_FAILURE);
     }
 
     Ok(())
@@ -319,6 +325,22 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             config::set_value(&mut cfg, &key, value)?;
             config::write(root, &cfg)?;
             output.println(&format!("Updated {}", root.join(CONFIG_FILE).display()));
+        }
+        ConfigCommand::Validate => {
+            let cfg = config::load(root)?;
+            config::validate(&cfg)?;
+            output.println("Config is valid.");
+        }
+        ConfigCommand::ListGenerators => {
+            println!("Server generators:");
+            for g in generators::SERVER_GENERATORS {
+                println!("  {}", g.name);
+            }
+            println!();
+            println!("Client generators:");
+            for g in generators::CLIENT_GENERATORS {
+                println!("  {}", g.name);
+            }
         }
         ConfigCommand::Edit => {
             let path = root.join(CONFIG_FILE);

@@ -57,6 +57,26 @@ impl Default for Config {
     }
 }
 
+pub fn validate(config: &Config) -> Result<()> {
+    if config.docker_timeout == 0 {
+        bail!("docker_timeout must be greater than 0");
+    }
+    if config.search_depth == 0 {
+        bail!("search_depth must be greater than 0");
+    }
+    validate_generators(
+        "server",
+        &config.server_generators,
+        &generators::server_names(),
+    )?;
+    validate_generators(
+        "client",
+        &config.client_generators,
+        &generators::client_names(),
+    )?;
+    Ok(())
+}
+
 pub fn load(root: &Path) -> Result<Config> {
     let path = root.join(CONFIG_FILE);
     if !path.exists() {

@@ -78,7 +78,9 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
         Ok(configs) => configs,
         Err(err) => {
             append_error(&error_log, &err.to_string())?;
-            append_status(ctx.root, "generate", ctx.scope, "_config_", "fail", &error_log)?;
+            append_status(
+                ctx.root, "generate", ctx.scope, "_config_", "fail", &error_log,
+            )?;
             return Ok(false);
         }
     };
@@ -105,7 +107,8 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
         .replace("  ", " ");
         write_log_header(&log_path, &command_line)?;
 
-        ctx.output.substep_start(&format!("Generate {} {name}", ctx.scope));
+        ctx.output
+            .substep_start(&format!("Generate {} {name}", ctx.scope));
         let mut command = Command::new("docker");
         command
             .arg("run")
@@ -131,7 +134,8 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
             if success { "ok" } else { "fail" },
             &log_path,
         )?;
-        ctx.output.substep_finish(&format!("Generate {} {name}", ctx.scope), success);
+        ctx.output
+            .substep_finish(&format!("Generate {} {name}", ctx.scope), success);
         if !success {
             failures += 1;
         }

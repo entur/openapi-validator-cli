@@ -45,3 +45,26 @@ fn invalid_client_generators_rejected() {
             "Unsupported client generator: 'fake'",
         ));
 }
+
+#[test]
+fn search_depth_zero_rejected() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--search-depth", "0"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("must be greater than 0"));
+}
+
+#[test]
+fn search_depth_valid_accepted() {
+    let temp = TempDir::new().unwrap();
+    fs::copy(fixture_path("valid.yml"), temp.path().join("openapi.yaml")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--spec", "openapi.yaml", "--search-depth", "2"])
+        .assert()
+        .success();
+}
