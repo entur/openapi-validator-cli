@@ -113,6 +113,9 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
         }
     }
     if let Some(d) = args.search_depth {
+        if d == 0 {
+            bail!("--search-depth must be greater than 0");
+        }
         cfg.search_depth = d;
     }
     if let Some(s) = args.spec {
@@ -170,9 +173,15 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     }
     util::extract_assets(root, &ASSETS)?;
     if let Some(t) = args.docker_timeout {
+        if t == 0 {
+            bail!("--docker-timeout must be greater than 0");
+        }
         cfg.docker_timeout = t;
     }
     if let Some(d) = args.search_depth {
+        if d == 0 {
+            bail!("--search-depth must be greater than 0");
+        }
         cfg.search_depth = d;
     }
     if let Some(s) = args.spec {

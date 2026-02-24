@@ -99,7 +99,13 @@ fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> Resu
         match child.try_wait().context("Failed to check process status")? {
             Some(status) => return Ok(status.success()),
             None if start.elapsed() >= timeout => {
-                let _ = child.kill();
+                if let Err(e) = child.kill() {
+                    // InvalidInput means the process already exited — harmless.
+                    // Anything else means we may have failed to stop it.
+                    if e.kind() != io::ErrorKind::InvalidInput {
+                        eprintln!("Warning: failed to kill timed-out process: {e}");
+                    }
+                }
                 bail!("Docker command timed out after {}s", timeout.as_secs());
             }
             None => thread::sleep(Duration::from_millis(500)),
