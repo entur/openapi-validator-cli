@@ -1,0 +1,102 @@
+name: Validate OpenAPI specs
+description: Run oav to lint, generate, and compile OpenAPI specs
+
+inputs:
+  spec:
+    description: Path to OpenAPI spec file
+    required: false
+  mode:
+    description: Validation mode (server, client, both)
+    required: false
+  server-generators:
+    description: Comma-separated list of server generators
+    required: false
+  client-generators:
+    description: Comma-separated list of client generators
+    required: false
+  skip-lint:
+    description: Skip the lint step
+    required: false
+    default: "false"
+  skip-generate:
+    description: Skip the generate step
+    required: false
+    default: "false"
+  skip-compile:
+    description: Skip the compile step
+    required: false
+    default: "false"
+  linter:
+    description: Linter to use (spectral, redocly, none)
+    required: false
+  ruleset:
+    description: Path to custom Spectral ruleset
+    required: false
+  docker-timeout:
+    description: Docker operation timeout in seconds
+    required: false
+  search-depth:
+    description: Max directory depth when searching for spec files
+    required: false
+  working-directory:
+    description: Working directory for oav commands
+    required: false
+    default: "."
+  upload-reports:
+    description: Upload .oav/reports/ as a workflow artifact
+    required: false
+    default: "true"
+
+outputs:
+  result:
+    description: "Validation result: pass, fail, or error"
+    value: ${{ steps.validate.outputs.result }}
+  total:
+    description: Total number of validation targets
+    value: ${{ steps.validate.outputs.total }}
+  passed:
+    description: Number of passed targets
+    value: ${{ steps.validate.outputs.passed }}
+  failed:
+    description: Number of failed targets
+    value: ${{ steps.validate.outputs.failed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run oav validate
+      id: validate
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bash "${{ github.action_path }}/validate.sh"
+      env:
+        INPUT_SPEC: ${{ inputs.spec }}
+        INPUT_MODE: ${{ inputs.mode }}
+        INPUT_SERVER_GENERATORS: ${{ inputs.server-generators }}
+        INPUT_CLIENT_GENERATORS: ${{ inputs.client-generators }}
+        INPUT_SKIP_LINT: ${{ inputs.skip-lint }}
+        INPUT_SKIP_GENERATE: ${{ inputs.skip-generate }}
+        INPUT_SKIP_COMPILE: ${{ inputs.skip-compile }}
+        INPUT_LINTER: ${{ inputs.linter }}
+        INPUT_RULESET: ${{ inputs.ruleset }}
+        INPUT_DOCKER_TIMEOUT: ${{ inputs.docker-timeout }}
+        INPUT_SEARCH_DEPTH: ${{ inputs.search-depth }}
+
+    - name: Generate step summary
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: bash "${{ github.action_path }}/summary.sh"
+
+    - name: Upload reports
+      if: always() && inputs.upload-reports == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: oav-reports
+        path: ${{ inputs.working-directory }}/.oav/reports/
+        if-no-files-found: ignore
+
+    - name: Set exit code
+      if: always()
+      shell: bash
+      run: exit ${{ steps.validate.outputs.exit_code }}

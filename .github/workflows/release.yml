@@ -104,6 +104,20 @@ jobs:
             dist/*.tar.gz
             dist/*.tar.gz.sha256
 
+  update-action-tag:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update major version tag
+        run: |
+          version="${{ needs.version.outputs.value }}"
+          major="v$(echo "$version" | cut -d. -f1)"
+          git tag -f "$major"
+          git push origin "$major" --force
+
   update-formula:
     needs: [version, release]
     runs-on: ubuntu-latest

@@ -1,0 +1,70 @@
+name: Setup oav
+description: Download and install the oav OpenAPI validator CLI
+
+inputs:
+  version:
+    description: Version to install (e.g. 0.3.0). Use "latest" for the most recent release.
+    required: false
+    default: latest
+  token:
+    description: GitHub token for API access and artifact downloads
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  version:
+    description: Resolved version that was installed
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve version and target
+      id: resolve
+      shell: bash
+      run: |
+        version="${{ inputs.version }}"
+        if [[ "$version" == "latest" ]]; then
+          json="$(curl -fsSL -H "Authorization: token ${{ inputs.token }}" \
+            "https://api.github.com/repos/entur/openapi-validator-cli/releases/latest")"
+          tag="$(printf '%s' "$json" | awk -F\" '/"tag_name":/ {print $4; exit}')"
+          if [[ -z "$tag" ]]; then
+            echo "::error::Unable to determine latest release tag"
+            exit 1
+          fi
+          version="${tag#v}"
+        fi
+
+        os="$(uname -s)"
+        arch="$(uname -m)"
+        case "$os" in
+          Darwin) platform="apple-darwin" ;;
+          Linux)  platform="unknown-linux-gnu" ;;
+          *)      echo "::error::Unsupported OS: $os"; exit 1 ;;
+        esac
+        case "$arch" in
+          x86_64)       arch="x86_64" ;;
+          arm64|aarch64) arch="aarch64" ;;
+          *)            echo "::error::Unsupported architecture: $arch"; exit 1 ;;
+        esac
+
+        target="${arch}-${platform}"
+        echo "version=${version}" >> "$GITHUB_OUTPUT"
+        echo "target=${target}" >> "$GITHUB_OUTPUT"
+
+    - name: Cache oav binary
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.tool_cache }}/oav/${{ steps.resolve.outputs.version }}
+        key: oav-${{ steps.resolve.outputs.version }}-${{ steps.resolve.outputs.target }}
+
+    - name: Install oav
+      id: install
+      shell: bash
+      run: bash "${{ github.action_path }}/install.sh"
+      env:
+        INPUT_VERSION: ${{ steps.resolve.outputs.version }}
+        INPUT_TARGET: ${{ steps.resolve.outputs.target }}
+        INPUT_TOKEN: ${{ inputs.token }}
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}

@@ -168,12 +168,17 @@ components:
           description: Whether the time is real-time.
     Error:
       type: object
-      description: Error response.
+      description: Error response following RFC 9457.
       required:
-        - code
-        - message
+        - status
+        - title
       properties:
-        code:
+        status:
+          type: integer
+          description: HTTP status code.
+        title:
           type: string
-        message:
+          description: Short summary of the problem type.
+        detail:
           type: string
+          description: Human-readable explanation.

@@ -1,0 +1,76 @@
+name: test-action
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "action/**"
+      - "tests/fixtures/**"
+      - ".github/workflows/test-action.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "action/**"
+      - "tests/fixtures/**"
+      - ".github/workflows/test-action.yml"
+
+jobs:
+  test-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run setup action
+        uses: ./action/setup
+
+      - name: Verify oav is on PATH
+        run: oav --version
+
+  test-validate-pass:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup oav
+        uses: ./action/setup
+
+      - name: Run validate (should pass)
+        id: validate
+        uses: ./action/validate
+        with:
+          spec: tests/fixtures/valid.yml
+          skip-generate: "true"
+          skip-compile: "true"
+          upload-reports: "false"
+
+      - name: Assert pass
+        run: |
+          if [[ "${{ steps.validate.outputs.result }}" != "pass" ]]; then
+            echo "::error::Expected result=pass, got ${{ steps.validate.outputs.result }}"
+            exit 1
+          fi
+
+  test-validate-failure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup oav
+        uses: ./action/setup
+
+      - name: Run validate (should fail)
+        id: validate
+        uses: ./action/validate
+        continue-on-error: true
+        with:
+          spec: tests/fixtures/invalid.yml
+          skip-generate: "true"
+          skip-compile: "true"
+          upload-reports: "false"
+
+      - name: Assert failure
+        run: |
+          if [[ "${{ steps.validate.outputs.result }}" != "fail" ]]; then
+            echo "::error::Expected result=fail, got ${{ steps.validate.outputs.result }}"
+            exit 1
+          fi
