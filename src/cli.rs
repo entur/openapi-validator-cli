@@ -1,15 +1,23 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputFormat {
+    Human,
+    Json,
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "oav", version, about = "OpenAPI Validator CLI")]
 pub struct Cli {
-    #[arg(short, long, global = true, conflicts_with = "quiet")]
+    #[arg(short, long, global = true, conflicts_with_all = ["quiet", "output"])]
     pub verbose: bool,
-    #[arg(short, long, global = true, conflicts_with = "verbose")]
+    #[arg(short, long, global = true, conflicts_with_all = ["verbose", "output"])]
     pub quiet: bool,
     #[arg(long, global = true, default_value = "auto")]
     pub color: ColorMode,
+    #[arg(long, global = true, default_value = "human", conflicts_with_all = ["verbose", "quiet"])]
+    pub output: OutputFormat,
     #[command(subcommand)]
     pub command: Commands,
 }

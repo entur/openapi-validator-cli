@@ -8,4 +8,10 @@ client_generators: []
 generator_overrides: {}
 generator_image: openapitools/openapi-generator-cli:v7.17.0
 redocly_image: redocly/cli:1.25.5
+linter: spectral
+spectral_image: stoplight/spectral:6
+spectral_ruleset: https://raw.githubusercontent.com/entur/api-guidelines/refs/tags/v2/.spectral.yml
+spectral_fail_severity: error
 manage_gitignore: false
+docker_timeout: 300
+search_depth: 4

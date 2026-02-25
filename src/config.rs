@@ -153,6 +153,55 @@ fn print_yaml<T: Serialize>(value: &T) -> Result<()> {
     Ok(())
 }
 
+pub fn get_json_value(config: &Config, key: &str) -> Result<serde_json::Value> {
+    let (base, subkey) = parse_key(key);
+
+    let value = match base {
+        "spec" => serde_json::to_value(&config.spec)?,
+        "mode" => serde_json::Value::String(config.mode.as_str().to_string()),
+        "lint" => serde_json::Value::Bool(config.lint),
+        "generate" => serde_json::Value::Bool(config.generate),
+        "compile" => serde_json::Value::Bool(config.compile),
+        "server_generators" | "server-generators" => {
+            serde_json::to_value(&config.server_generators)?
+        }
+        "client_generators" | "client-generators" => {
+            serde_json::to_value(&config.client_generators)?
+        }
+        "generator_overrides" | "generator-overrides" => {
+            if let Some(subkey) = subkey {
+                match config.generator_overrides.get(subkey) {
+                    Some(v) => serde_json::Value::String(v.clone()),
+                    None => serde_json::Value::Null,
+                }
+            } else {
+                serde_json::to_value(&config.generator_overrides)?
+            }
+        }
+        "generator_image" | "generator-image" => {
+            serde_json::Value::String(config.generator_image.clone())
+        }
+        "redocly_image" | "redocly-image" => {
+            serde_json::Value::String(config.redocly_image.clone())
+        }
+        "linter" => serde_json::Value::String(config.linter.as_str().to_string()),
+        "spectral_image" | "spectral-image" => {
+            serde_json::Value::String(config.spectral_image.clone())
+        }
+        "spectral_ruleset" | "spectral-ruleset" => {
+            serde_json::Value::String(config.spectral_ruleset.clone())
+        }
+        "spectral_fail_severity" | "spectral-fail-severity" => {
+            serde_json::Value::String(config.spectral_fail_severity.clone())
+        }
+        "manage_gitignore" | "manage-gitignore" => serde_json::Value::Bool(config.manage_gitignore),
+        "docker_timeout" | "docker-timeout" => serde_json::to_value(config.docker_timeout)?,
+        "search_depth" | "search-depth" => serde_json::to_value(config.search_depth)?,
+        _ => bail!("Unknown config key: {key}"),
+    };
+    Ok(value)
+}
+
 pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
     let (base, subkey) = parse_key(key);
 

@@ -2,6 +2,7 @@ mod cli;
 mod config;
 mod docker;
 mod generators;
+mod json_report;
 mod output;
 mod steps;
 mod util;
@@ -18,10 +19,12 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use cli::{Cli, Commands, ConfigCommand};
+use cli::{Cli, Commands, ConfigCommand, OutputFormat};
 use config::{CONFIG_FILE, Config};
 use output::Output;
 use util::OAV_DIR;
+
+pub use cli::OutputFormat as PubOutputFormat;
 
 static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
 
@@ -48,12 +51,18 @@ struct ValidateArgs {
     search_depth: Option<usize>,
 }
 
-pub fn run() -> Result<()> {
+/// Run the CLI. Returns the requested output format so the caller can
+/// format errors appropriately.
+pub fn run() -> (OutputFormat, Result<()>) {
     let cli = Cli::parse();
-    let root = env::current_dir().context("Failed to determine current directory")?;
-    let output = Output::new(cli.verbose, cli.quiet, cli.color);
+    let json = cli.output == OutputFormat::Json;
+    let root = match env::current_dir().context("Failed to determine current directory") {
+        Ok(r) => r,
+        Err(e) => return (cli.output, Err(e)),
+    };
+    let output = Output::new(cli.verbose, cli.quiet, json, cli.color);
 
-    match cli.command {
+    let result = match cli.command {
         Commands::Init {
             spec,
             mode,
@@ -104,7 +113,9 @@ pub fn run() -> Result<()> {
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
         Commands::Clean => cmd_clean(&root, &output),
-    }
+    };
+
+    (cli.output, result)
 }
 
 fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
@@ -295,6 +306,20 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     let passed = entries.iter().filter(|e| e.status == "ok").count();
     let failed = entries.iter().filter(|e| e.status == "fail").count();
 
+    if output.json {
+        let spec_display = cfg.spec.as_deref().unwrap_or("");
+        let report =
+            json_report::build_validate_report(root, spec_display, cfg.mode.as_str(), &entries);
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&report).expect("failed to serialize report")
+        );
+        if failures > 0 {
+            std::process::exit(EXIT_VALIDATION_FAILURE);
+        }
+        return Ok(());
+    }
+
     output.print_summary(passed, failed);
 
     output.println("");
@@ -318,7 +343,16 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
             let cfg = config::load(root)?;
-            config::print_value(&cfg, &key)?;
+            if output.json {
+                let value = config::get_json_value(&cfg, &key)?;
+                let cv = json_report::ConfigValue { key, value };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&cv).expect("failed to serialize config value")
+                );
+            } else {
+                config::print_value(&cfg, &key)?;
+            }
         }
         ConfigCommand::Set { key, value } => {
             let mut cfg = config::load(root)?;
@@ -329,17 +363,39 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
         ConfigCommand::Validate => {
             let cfg = config::load(root)?;
             config::validate(&cfg)?;
-            output.println("Config is valid.");
+            if output.json {
+                println!(r#"{{"valid":true}}"#);
+            } else {
+                output.println("Config is valid.");
+            }
         }
         ConfigCommand::ListGenerators => {
-            println!("Server generators:");
-            for g in generators::SERVER_GENERATORS {
-                println!("  {}", g.name);
-            }
-            println!();
-            println!("Client generators:");
-            for g in generators::CLIENT_GENERATORS {
-                println!("  {}", g.name);
+            if output.json {
+                let list = json_report::GeneratorList {
+                    server: generators::server_names()
+                        .into_iter()
+                        .map(String::from)
+                        .collect(),
+                    client: generators::client_names()
+                        .into_iter()
+                        .map(String::from)
+                        .collect(),
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&list)
+                        .expect("failed to serialize generator list")
+                );
+            } else {
+                println!("Server generators:");
+                for g in generators::SERVER_GENERATORS {
+                    println!("  {}", g.name);
+                }
+                println!();
+                println!("Client generators:");
+                for g in generators::CLIENT_GENERATORS {
+                    println!("  {}", g.name);
+                }
             }
         }
         ConfigCommand::Edit => {
@@ -358,8 +414,15 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
         }
         ConfigCommand::Print => {
             let cfg = config::load(root)?;
-            let yaml = serde_yaml::to_string(&cfg).context("Failed to serialize config")?;
-            print!("{yaml}");
+            if output.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&cfg).expect("failed to serialize config")
+                );
+            } else {
+                let yaml = serde_yaml::to_string(&cfg).context("Failed to serialize config")?;
+                print!("{yaml}");
+            }
         }
         ConfigCommand::Ignore => {
             util::ensure_gitignore(root, true)?;

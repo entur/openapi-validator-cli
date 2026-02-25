@@ -10,28 +10,33 @@ use crate::cli::ColorMode;
 pub struct Output {
     pub verbose: bool,
     pub quiet: bool,
+    pub json: bool,
     color: bool,
     progress: bool,
 }
 
 impl Output {
-    pub fn new(verbose: bool, quiet: bool, color_mode: ColorMode) -> Self {
+    pub fn new(verbose: bool, quiet: bool, json: bool, color_mode: ColorMode) -> Self {
         let is_tty = io::stdout().is_terminal();
         let color = match color_mode {
             ColorMode::Always => true,
             ColorMode::Never => false,
             ColorMode::Auto => is_tty && env::var_os("NO_COLOR").is_none(),
         };
-        let progress = is_tty && !verbose && !quiet;
+        let progress = is_tty && !verbose && !quiet && !json;
         Self {
             verbose,
             quiet,
+            json,
             color,
             progress,
         }
     }
 
     pub fn start_spinner(&self, label: &str) -> Option<ProgressBar> {
+        if self.json {
+            return None;
+        }
         if self.progress {
             let spinner = ProgressBar::new_spinner();
             let style = ProgressStyle::with_template("{spinner} {msg}")
@@ -53,14 +58,14 @@ impl Output {
         if let Some(spinner) = spinner {
             spinner.finish_and_clear();
         }
-        if self.quiet {
+        if self.quiet || self.json {
             return;
         }
         println!("{} {label}", self.status_icon(success));
     }
 
     pub fn phase_header(&self, label: &str) {
-        if self.quiet {
+        if self.quiet || self.json {
             return;
         }
         println!();
@@ -72,7 +77,7 @@ impl Output {
     }
 
     pub fn substep_start(&self, label: &str) {
-        if self.quiet {
+        if self.quiet || self.json {
             return;
         }
         if self.progress {
@@ -84,7 +89,7 @@ impl Output {
     }
 
     pub fn substep_finish(&self, label: &str, success: bool) {
-        if self.quiet {
+        if self.quiet || self.json {
             return;
         }
         let status = self.status_icon(success);
@@ -98,13 +103,15 @@ impl Output {
     }
 
     pub fn println(&self, message: &str) {
-        if !self.quiet {
+        if !self.quiet && !self.json {
             println!("{message}");
         }
     }
 
     pub fn println_always(&self, message: &str) {
-        println!("{message}");
+        if !self.json {
+            println!("{message}");
+        }
     }
 
     pub fn print_error(&self, message: &str) {
@@ -116,7 +123,7 @@ impl Output {
     }
 
     pub fn print_summary(&self, passed: usize, failed: usize) {
-        if self.quiet {
+        if self.quiet || self.json {
             return;
         }
         println!();

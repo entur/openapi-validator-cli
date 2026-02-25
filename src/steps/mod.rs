@@ -6,7 +6,7 @@ mod report;
 pub use compile::run as compile;
 pub use generate::run as generate;
 pub use lint::run as lint;
-pub use report::{load_status_entries, run as report};
+pub use report::{StatusEntry, load_status_entries, run as report};
 
 use anyhow::Result;
 
