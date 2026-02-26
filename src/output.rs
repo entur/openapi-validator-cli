@@ -108,9 +108,37 @@ impl Output {
         }
     }
 
-    pub fn println_ignore_quiet(&self, message: &str) {
-        if !self.json {
+
+    pub fn print_success(&self, message: &str) {
+        if self.quiet || self.json {
+            return;
+        }
+        if self.color {
+            println!("{} {message}", "✓".green());
+        } else {
             println!("{message}");
+        }
+    }
+
+    pub fn print_detail(&self, label: &str, value: &str) {
+        if self.quiet || self.json {
+            return;
+        }
+        if self.color {
+            println!("  {} {value}", format!("{label}:").dimmed());
+        } else {
+            println!("  {label}: {value}");
+        }
+    }
+
+    pub fn print_detail_ignore_quiet(&self, label: &str, value: &str) {
+        if self.json {
+            return;
+        }
+        if self.color {
+            println!("  {} {value}", format!("{label}:").dimmed());
+        } else {
+            println!("  {label}: {value}");
         }
     }
 

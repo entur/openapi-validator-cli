@@ -122,6 +122,19 @@ pub fn run() -> (OutputFormat, Result<()>) {
 }
 
 fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
+    let is_fresh = !root.join(CONFIG_FILE).exists();
+    let no_flags = args.spec.is_none()
+        && args.mode.is_none()
+        && args.server_generators.is_none()
+        && args.client_generators.is_none()
+        && args.search_depth.is_none()
+        && !args.ignore_config;
+    let interactive = !output.quiet && !output.json;
+
+    if is_fresh && no_flags && interactive {
+        return cmd_init_interactive(root, output, args);
+    }
+
     let mut cfg = config::load(root)?;
     util::ensure_oav_dir(root)?;
     if cfg.manage_gitignore {
@@ -178,9 +191,103 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     config::write(root, &cfg)?;
     util::extract_assets(root, &ASSETS)?;
 
-    output.println("Initialized OpenAPI Validator.");
-    output.println(&format!("Config: {}", root.join(CONFIG_FILE).display()));
-    output.println(&format!("Workspace: {}", root.join(OAV_DIR).display()));
+    output.print_success("Initialized OpenAPI Validator.");
+    output.print_detail("Config", &root.join(CONFIG_FILE).display().to_string());
+    output.print_detail("Workspace", &root.join(OAV_DIR).display().to_string());
+    Ok(())
+}
+
+fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
+    let term = console::Term::stderr();
+    let theme = dialoguer::theme::ColorfulTheme::default();
+    let cancelled = || anyhow::anyhow!("Setup cancelled.");
+
+    let mut cfg = config::load(root)?;
+    util::ensure_oav_dir(root)?;
+    if cfg.manage_gitignore {
+        util::add_gitignore_entries(root, &[".oav/"])?;
+        if args.ignore_config {
+            util::add_gitignore_entries(root, &[".oavc"])?;
+        }
+    }
+
+    // 1. Spec discovery
+    let spec = match util::discover_spec(root, false, cfg.search_depth)? {
+        Some(s) => s,
+        None => {
+            let input: String = dialoguer::Input::with_theme(&theme)
+                .with_prompt("No OpenAPI spec found — enter path")
+                .interact_on(&term)?;
+            let trimmed = input.trim().to_string();
+            if trimmed.is_empty() {
+                bail!("Spec path cannot be blank");
+            }
+            trimmed
+        }
+    };
+    let spec_path = util::normalize_spec_path(root, &spec)?;
+    cfg.spec = Some(spec_path.to_string_lossy().to_string());
+
+    // 2. Mode selection
+    let mode_items = ["server", "client", "both"];
+    let mode_idx = dialoguer::Select::with_theme(&theme)
+        .with_prompt("Validation mode")
+        .items(mode_items)
+        .default(0)
+        .interact_on_opt(&term)?
+        .ok_or_else(cancelled)?;
+    cfg.mode = match mode_idx {
+        0 => cli::Mode::Server,
+        1 => cli::Mode::Client,
+        _ => cli::Mode::Both,
+    };
+
+    // 3. Generator selection
+    if matches!(cfg.mode, cli::Mode::Server | cli::Mode::Both) {
+        let names = generators::server_names();
+        let selections = dialoguer::MultiSelect::with_theme(&theme)
+            .with_prompt("Server generators (space to toggle, enter to confirm, or skip for all)")
+            .items(&names)
+            .interact_on_opt(&term)?
+            .ok_or_else(cancelled)?;
+        if !selections.is_empty() {
+            cfg.server_generators = selections.iter().map(|&i| names[i].to_string()).collect();
+        }
+    }
+    if matches!(cfg.mode, cli::Mode::Client | cli::Mode::Both) {
+        let names = generators::client_names();
+        let selections = dialoguer::MultiSelect::with_theme(&theme)
+            .with_prompt("Client generators (space to toggle, enter to confirm, or skip for all)")
+            .items(&names)
+            .interact_on_opt(&term)?
+            .ok_or_else(cancelled)?;
+        if !selections.is_empty() {
+            cfg.client_generators = selections.iter().map(|&i| names[i].to_string()).collect();
+        }
+    }
+
+    // 4. Linter selection
+    let linter_items = ["spectral", "redocly", "none"];
+    let linter_idx = dialoguer::Select::with_theme(&theme)
+        .with_prompt("Linter")
+        .items(linter_items)
+        .default(0)
+        .interact_on_opt(&term)?
+        .ok_or_else(cancelled)?;
+    cfg.linter = match linter_idx {
+        0 => cli::Linter::Spectral,
+        1 => cli::Linter::Redocly,
+        _ => cli::Linter::None,
+    };
+
+    // 5. Write config and finish
+    config::validate(&cfg)?;
+    config::write(root, &cfg)?;
+    util::extract_assets(root, &ASSETS)?;
+
+    output.print_success("Initialized OpenAPI Validator.");
+    output.print_detail("Config", &root.join(CONFIG_FILE).display().to_string());
+    output.print_detail("Workspace", &root.join(OAV_DIR).display().to_string());
     Ok(())
 }
 
@@ -336,13 +443,15 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     output.print_summary(passed, failed);
 
     output.println("");
-    output.println_ignore_quiet(&format!(
-        "Dashboard: {}",
-        root.join(OAV_DIR)
+    output.print_detail_ignore_quiet(
+        "Dashboard",
+        &root
+            .join(OAV_DIR)
             .join("reports")
             .join("dashboard.html")
             .display()
-    ));
+            .to_string(),
+    );
 
     if failures > 0 {
         output.print_error("Validation failed. See dashboard for details.");
@@ -371,7 +480,7 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             let mut cfg = config::load(root)?;
             config::set_value(&mut cfg, &key, value)?;
             config::write(root, &cfg)?;
-            output.println(&format!("Updated {}", root.join(CONFIG_FILE).display()));
+            output.print_success(&format!("Updated {}", root.join(CONFIG_FILE).display()));
         }
         ConfigCommand::Validate => {
             let cfg = config::load(root)?;
@@ -379,7 +488,7 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             if output.json {
                 println!(r#"{{"valid":true}}"#);
             } else {
-                output.println("Config is valid.");
+                output.print_success("Config is valid.");
             }
         }
         ConfigCommand::ListGenerators => {
@@ -442,14 +551,16 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             let mut cfg = config::load(root)?;
             cfg.manage_gitignore = true;
             config::write(root, &cfg)?;
-            output.println("Added .oavc to .gitignore and enabled automatic gitignore management.");
+            output.print_success(
+                "Added .oavc to .gitignore and enabled automatic gitignore management.",
+            );
         }
         ConfigCommand::Unignore => {
             util::remove_gitignore_entries(root, &[".oavc"])?;
             let mut cfg = config::load(root)?;
             cfg.manage_gitignore = false;
             config::write(root, &cfg)?;
-            output.println(
+            output.print_success(
                 "Removed .oavc from .gitignore and disabled automatic gitignore management.",
             );
         }
@@ -475,7 +586,7 @@ fn cmd_clean(root: &Path, output: &Output) -> Result<()> {
     let path = root.join(OAV_DIR);
     if path.exists() {
         fs::remove_dir_all(&path).context("Failed to remove .oav directory")?;
-        output.println(&format!("Removed {}", path.display()));
+        output.print_success(&format!("Removed {}", path.display()));
     } else {
         output.println("No .oav directory found.");
     }

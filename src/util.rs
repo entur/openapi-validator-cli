@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use include_dir::{Dir, DirEntry};
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, Read, Write};
+use std::io::{Read as _, Write};
 use std::path::{Path, PathBuf};
 
 pub const OAV_DIR: &str = ".oav";
@@ -245,33 +245,13 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
         );
     }
 
-    eprintln!("No default OpenAPI spec found.");
-    eprintln!("Select a spec to use:");
-    for (idx, path) in candidates.iter().enumerate() {
-        eprintln!("  {}) {}", idx + 1, path);
-    }
-    eprintln!("  q) quit");
+    let selection = dialoguer::Select::new()
+        .with_prompt("Multiple specs found — select one")
+        .items(&candidates)
+        .default(0)
+        .interact_on_opt(&console::Term::stderr())?;
 
-    let mut input = String::new();
-    loop {
-        eprint!("Select [1-{}] or q: ", candidates.len());
-        io::stderr().flush().context("Failed to flush stderr")?;
-        input.clear();
-        io::stdin()
-            .read_line(&mut input)
-            .context("Failed to read input")?;
-        let trimmed = input.trim();
-        if trimmed.eq_ignore_ascii_case("q") {
-            return Ok(None);
-        }
-        if let Ok(choice) = trimmed.parse::<usize>()
-            && choice >= 1
-            && choice <= candidates.len()
-        {
-            return Ok(Some(candidates[choice - 1].clone()));
-        }
-        eprintln!("Invalid selection.");
-    }
+    Ok(selection.map(|i| candidates[i].clone()))
 }
 
 // Logging utilities
