@@ -246,7 +246,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     if matches!(cfg.mode, cli::Mode::Server | cli::Mode::Both) {
         let names = generators::server_names();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
-            .with_prompt("Server generators (space to toggle, enter to confirm, or skip for all)")
+            .with_prompt("Server generators (space to toggle, enter to confirm, or leave empty for all)")
             .items(&names)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;
@@ -257,7 +257,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     if matches!(cfg.mode, cli::Mode::Client | cli::Mode::Both) {
         let names = generators::client_names();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
-            .with_prompt("Client generators (space to toggle, enter to confirm, or skip for all)")
+            .with_prompt("Client generators (space to toggle, enter to confirm, or leave empty for all)")
             .items(&names)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;

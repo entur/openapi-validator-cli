@@ -245,7 +245,8 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
         );
     }
 
-    let selection = dialoguer::Select::new()
+    let theme = dialoguer::theme::ColorfulTheme::default();
+    let selection = dialoguer::Select::with_theme(&theme)
         .with_prompt("Multiple specs found — select one")
         .items(&candidates)
         .default(0)
