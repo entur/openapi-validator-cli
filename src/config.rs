@@ -29,6 +29,7 @@ pub struct Config {
     pub manage_gitignore: bool,
     pub docker_timeout: u64,
     pub search_depth: usize,
+    pub jobs: usize,
 }
 
 impl Default for Config {
@@ -53,6 +54,7 @@ impl Default for Config {
             manage_gitignore: true,
             docker_timeout: 300,
             search_depth: 4,
+            jobs: 0,
         }
     }
 }
@@ -64,6 +66,7 @@ pub fn validate(config: &Config) -> Result<()> {
     if config.search_depth == 0 {
         bail!("search_depth must be greater than 0");
     }
+    // jobs == 0 means auto-detect, any positive value is valid
     validate_generators(
         "server",
         &config.server_generators,
@@ -75,6 +78,15 @@ pub fn validate(config: &Config) -> Result<()> {
         &generators::client_names(),
     )?;
     Ok(())
+}
+
+pub fn resolve_jobs(raw: usize) -> usize {
+    if raw >= 1 {
+        return raw;
+    }
+    std::thread::available_parallelism()
+        .map(|n| n.get().min(4))
+        .unwrap_or(1)
 }
 
 pub fn load(root: &Path) -> Result<Config> {
@@ -133,6 +145,7 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
         "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
         "docker_timeout" | "docker-timeout" => println!("{}", config.docker_timeout),
         "search_depth" | "search-depth" => println!("{}", config.search_depth),
+        "jobs" => println!("{}", config.jobs),
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
@@ -197,6 +210,7 @@ pub fn get_json_value(config: &Config, key: &str) -> Result<serde_json::Value> {
         "manage_gitignore" | "manage-gitignore" => serde_json::Value::Bool(config.manage_gitignore),
         "docker_timeout" | "docker-timeout" => serde_json::to_value(config.docker_timeout)?,
         "search_depth" | "search-depth" => serde_json::to_value(config.search_depth)?,
+        "jobs" => serde_json::to_value(config.jobs)?,
         _ => bail!("Unknown config key: {key}"),
     };
     Ok(value)
@@ -290,6 +304,12 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 bail!("search_depth must be greater than 0");
             }
             config.search_depth = depth;
+        }
+        "jobs" => {
+            let n: usize = value.trim().parse().map_err(|_| {
+                anyhow::anyhow!("Invalid jobs: {value} (expected non-negative integer)")
+            })?;
+            config.jobs = n;
         }
         _ => bail!("Unknown config key: {key}"),
     }

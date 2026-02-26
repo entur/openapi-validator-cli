@@ -68,6 +68,8 @@ pub enum Commands {
         docker_timeout: Option<u64>,
         #[arg(long)]
         search_depth: Option<usize>,
+        #[arg(short = 'j', long)]
+        jobs: Option<usize>,
     },
     Config {
         #[command(subcommand)]

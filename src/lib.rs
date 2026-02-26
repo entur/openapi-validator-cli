@@ -49,6 +49,7 @@ struct ValidateArgs {
     ruleset: Option<String>,
     docker_timeout: Option<u64>,
     search_depth: Option<usize>,
+    jobs: Option<usize>,
 }
 
 /// Run the CLI. Returns the requested output format so the caller can
@@ -94,6 +95,7 @@ pub fn run() -> (OutputFormat, Result<()>) {
             ruleset,
             docker_timeout,
             search_depth,
+            jobs,
         } => cmd_validate(
             &root,
             &output,
@@ -109,6 +111,7 @@ pub fn run() -> (OutputFormat, Result<()>) {
                 ruleset,
                 docker_timeout,
                 search_depth,
+                jobs,
             },
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
@@ -199,6 +202,16 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
             bail!("--search-depth must be greater than 0");
         }
         cfg.search_depth = d;
+    }
+    if let Some(j) = args.jobs {
+        cfg.jobs = j;
+    }
+    let resolved_jobs = config::resolve_jobs(cfg.jobs);
+    if output.verbose && resolved_jobs > 1 {
+        output.print_warning("--verbose forces sequential execution (--jobs 1)");
+        cfg.jobs = 1;
+    } else {
+        cfg.jobs = resolved_jobs;
     }
     if let Some(s) = args.spec {
         let trimmed = s.trim().to_string();

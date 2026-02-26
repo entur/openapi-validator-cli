@@ -1,5 +1,5 @@
 use console::Term;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use owo_colors::OwoColorize;
 use std::env;
 use std::io::{self, IsTerminal, Write};
@@ -120,6 +120,54 @@ impl Output {
         } else {
             eprintln!("error: {message}");
         }
+    }
+
+    pub fn print_warning(&self, message: &str) {
+        if self.color {
+            eprintln!("{} {}", "warning:".yellow().bold(), message);
+        } else {
+            eprintln!("warning: {message}");
+        }
+    }
+
+    pub fn multi_progress(&self) -> Option<MultiProgress> {
+        if self.progress {
+            Some(MultiProgress::new())
+        } else {
+            None
+        }
+    }
+
+    pub fn add_parallel_spinner(&self, mp: &MultiProgress, label: &str) -> Option<ProgressBar> {
+        if self.progress {
+            let spinner = mp.add(ProgressBar::new_spinner());
+            let style = ProgressStyle::with_template("  {spinner} {msg}")
+                .unwrap_or_else(|_| ProgressStyle::default_spinner())
+                .tick_strings(&["-", "\\", "|", "/"]);
+            spinner.set_style(style);
+            spinner.set_message(label.to_string());
+            spinner.enable_steady_tick(Duration::from_millis(100));
+            Some(spinner)
+        } else {
+            None
+        }
+    }
+
+    pub fn finish_parallel_spinner(
+        &self,
+        mp: &MultiProgress,
+        spinner: Option<ProgressBar>,
+        label: &str,
+        success: bool,
+    ) {
+        if let Some(spinner) = spinner {
+            spinner.finish_and_clear();
+        }
+        if self.quiet || self.json {
+            return;
+        }
+        let status = self.status_icon(success);
+        let _ = mp.println(format!("{status}   {label}"));
     }
 
     pub fn print_summary(&self, passed: usize, failed: usize) {

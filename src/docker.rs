@@ -93,6 +93,25 @@ pub fn run_with_logging(
     }
 }
 
+pub fn run_with_logging_quiet(
+    command: &mut Command,
+    log_path: &Path,
+    timeout: Duration,
+) -> Result<bool> {
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)
+        .context("Failed to open log file")?;
+    let log_err = log_file.try_clone().context("Failed to clone log file")?;
+    command
+        .stdout(Stdio::from(log_file))
+        .stderr(Stdio::from(log_err));
+    let mut child = command.spawn().context("Failed to start Docker command")?;
+    let success = wait_with_timeout(&mut child, timeout)?;
+    Ok(success)
+}
+
 fn wait_with_timeout(child: &mut std::process::Child, timeout: Duration) -> Result<bool> {
     let start = Instant::now();
     loop {

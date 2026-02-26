@@ -571,6 +571,7 @@ fn config_print_json_has_all_fields() {
         "manage_gitignore",
         "docker_timeout",
         "search_depth",
+        "jobs",
     ];
     for field in &expected_fields {
         assert!(obj.contains_key(*field), "missing field: {field}");
@@ -592,4 +593,62 @@ fn config_print_json_reflects_custom_values() {
     );
     assert_eq!(json["linter"], "redocly");
     assert_eq!(json["docker_timeout"], 120);
+}
+
+// ── jobs config field ───────────────────────────────────────────────────
+
+#[test]
+fn set_jobs_zero_accepted() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "0"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn set_jobs_valid_accepted() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "4"])
+        .assert()
+        .success();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "jobs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("4"));
+}
+
+#[test]
+fn set_jobs_json() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "2"])
+        .assert()
+        .success();
+
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "get", "jobs", "--output", "json"]),
+    );
+    assert_eq!(json["key"], "jobs");
+    assert_eq!(json["value"], 2);
+}
+
+#[test]
+fn set_jobs_negative_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "--", "-1"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid jobs"));
 }

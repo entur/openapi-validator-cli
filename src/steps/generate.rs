@@ -22,6 +22,14 @@ struct ScopeContext<'a> {
     reports_root: &'a Path,
     output: &'a Output,
     timeout: Duration,
+    jobs: usize,
+}
+
+pub struct TaskResult {
+    pub name: String,
+    pub scope: String,
+    pub success: bool,
+    pub log_path: PathBuf,
 }
 
 pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
@@ -44,6 +52,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             reports_root: &reports_root,
             output,
             timeout,
+            jobs: config.jobs,
         })?
     {
         failures += 1;
@@ -61,12 +70,60 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             reports_root: &reports_root,
             output,
             timeout,
+            jobs: config.jobs,
         })?
     {
         failures += 1;
     }
 
     Ok(failures == 0)
+}
+
+fn run_single_generator(ctx: &ScopeContext, name: &str, config_path: &Path) -> Result<TaskResult> {
+    let report_dir = ctx.reports_root.join(ctx.scope);
+    let log_path = report_dir.join(format!("{name}.log"));
+    let config_rel = config_path
+        .strip_prefix(ctx.root)
+        .context("Generator config path is outside repository")?;
+    let container_config = format!("/work/{}", to_posix_path(config_rel));
+    let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
+
+    let command_line = format!(
+        "$ docker run --rm {user} -v {root}:/work -w /work/{oav} {image} generate -i {spec} -c {config}",
+        user = docker::user_flag(),
+        root = ctx.root.display(),
+        oav = OAV_DIR,
+        image = ctx.generator_image,
+        spec = container_spec,
+        config = container_config
+    )
+    .replace("  ", " ");
+    write_log_header(&log_path, &command_line)?;
+
+    let mut command = Command::new("docker");
+    command
+        .arg("run")
+        .arg("--rm")
+        .args(docker::user_args())
+        .arg("-v")
+        .arg(format!("{}:/work", ctx.root.display()))
+        .arg("-w")
+        .arg(format!("/work/{OAV_DIR}"))
+        .arg(ctx.generator_image)
+        .arg("generate")
+        .arg("-i")
+        .arg(container_spec)
+        .arg("-c")
+        .arg(container_config);
+
+    let success = docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?;
+
+    Ok(TaskResult {
+        name: name.to_string(),
+        scope: ctx.scope.to_string(),
+        success,
+        log_path,
+    })
 }
 
 fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
@@ -85,63 +142,136 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
         }
     };
 
+    if ctx.jobs <= 1 {
+        return run_sequential(ctx, &configs);
+    }
+
+    run_parallel(ctx, &configs)
+}
+
+fn run_sequential(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<bool> {
     let mut failures = 0;
     for (name, config_path) in configs {
-        let name = name.as_str();
-        let log_path = report_dir.join(format!("{name}.log"));
-        let config_rel = config_path
-            .strip_prefix(ctx.root)
-            .context("Generator config path is outside repository")?;
-        let container_config = format!("/work/{}", to_posix_path(config_rel));
-        let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
+        let label = format!("Generate {} {name}", ctx.scope);
+        ctx.output.substep_start(&label);
 
-        let command_line = format!(
-            "$ docker run --rm {user} -v {root}:/work -w /work/{oav} {image} generate -i {spec} -c {config}",
-            user = docker::user_flag(),
-            root = ctx.root.display(),
-            oav = OAV_DIR,
-            image = ctx.generator_image,
-            spec = container_spec,
-            config = container_config
-        )
-        .replace("  ", " ");
-        write_log_header(&log_path, &command_line)?;
+        let result = run_single_generator_sequential(ctx, name, config_path)?;
 
-        ctx.output
-            .substep_start(&format!("Generate {} {name}", ctx.scope));
-        let mut command = Command::new("docker");
-        command
-            .arg("run")
-            .arg("--rm")
-            .args(docker::user_args())
-            .arg("-v")
-            .arg(format!("{}:/work", ctx.root.display()))
-            .arg("-w")
-            .arg(format!("/work/{OAV_DIR}"))
-            .arg(ctx.generator_image)
-            .arg("generate")
-            .arg("-i")
-            .arg(container_spec)
-            .arg("-c")
-            .arg(container_config);
-
-        let success = docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?;
         append_status(
             ctx.root,
             "generate",
             ctx.scope,
             name,
-            if success { "ok" } else { "fail" },
-            &log_path,
+            if result.success { "ok" } else { "fail" },
+            &result.log_path,
         )?;
-        ctx.output
-            .substep_finish(&format!("Generate {} {name}", ctx.scope), success);
-        if !success {
+        ctx.output.substep_finish(&label, result.success);
+        if !result.success {
             failures += 1;
         }
     }
-
     Ok(failures == 0)
+}
+
+fn run_single_generator_sequential(
+    ctx: &ScopeContext,
+    name: &str,
+    config_path: &Path,
+) -> Result<TaskResult> {
+    let report_dir = ctx.reports_root.join(ctx.scope);
+    let log_path = report_dir.join(format!("{name}.log"));
+    let config_rel = config_path
+        .strip_prefix(ctx.root)
+        .context("Generator config path is outside repository")?;
+    let container_config = format!("/work/{}", to_posix_path(config_rel));
+    let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
+
+    let command_line = format!(
+        "$ docker run --rm {user} -v {root}:/work -w /work/{oav} {image} generate -i {spec} -c {config}",
+        user = docker::user_flag(),
+        root = ctx.root.display(),
+        oav = OAV_DIR,
+        image = ctx.generator_image,
+        spec = container_spec,
+        config = container_config
+    )
+    .replace("  ", " ");
+    write_log_header(&log_path, &command_line)?;
+
+    let mut command = Command::new("docker");
+    command
+        .arg("run")
+        .arg("--rm")
+        .args(docker::user_args())
+        .arg("-v")
+        .arg(format!("{}:/work", ctx.root.display()))
+        .arg("-w")
+        .arg(format!("/work/{OAV_DIR}"))
+        .arg(ctx.generator_image)
+        .arg("generate")
+        .arg("-i")
+        .arg(container_spec)
+        .arg("-c")
+        .arg(container_config);
+
+    let success = docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?;
+
+    Ok(TaskResult {
+        name: name.to_string(),
+        scope: ctx.scope.to_string(),
+        success,
+        log_path,
+    })
+}
+
+fn run_parallel(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<bool> {
+    let mp = ctx.output.multi_progress();
+    let mp_ref = mp.as_ref();
+    let mut all_failures = 0;
+
+    for chunk in configs.chunks(ctx.jobs) {
+        let results: Vec<Result<TaskResult>> = std::thread::scope(|s| {
+            let handles: Vec<_> = chunk
+                .iter()
+                .map(|(name, config_path)| {
+                    let label = format!("Generate {} {name}", ctx.scope);
+                    let spinner = mp_ref.map(|m| ctx.output.add_parallel_spinner(m, &label));
+                    s.spawn(move || {
+                        let result = run_single_generator(ctx, name, config_path);
+                        if let Some(mp) = mp_ref {
+                            let success = result.as_ref().map(|r| r.success).unwrap_or(false);
+                            ctx.output.finish_parallel_spinner(
+                                mp,
+                                spinner.flatten(),
+                                &label,
+                                success,
+                            );
+                        }
+                        result
+                    })
+                })
+                .collect();
+
+            handles.into_iter().map(|h| h.join().unwrap()).collect()
+        });
+
+        for result in results {
+            let result = result?;
+            append_status(
+                ctx.root,
+                "generate",
+                ctx.scope,
+                &result.name,
+                if result.success { "ok" } else { "fail" },
+                &result.log_path,
+            )?;
+            if !result.success {
+                all_failures += 1;
+            }
+        }
+    }
+
+    Ok(all_failures == 0)
 }
 
 fn resolve_configs(
