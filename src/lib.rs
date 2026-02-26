@@ -125,9 +125,11 @@ pub fn run() -> (OutputFormat, Result<()>) {
                         completions::generate(shell);
                         Ok(())
                     }
-                    CompletionsCommand::Install { shell, yes } => completions::install(shell, yes),
+                    CompletionsCommand::Install { shell, yes } => {
+                        completions::install(shell, yes, &output)
+                    }
                     CompletionsCommand::Uninstall { shell, yes } => {
-                        completions::uninstall(shell, yes)
+                        completions::uninstall(shell, yes, &output)
                     }
                 },
             );
