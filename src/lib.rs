@@ -1,3 +1,4 @@
+mod agent;
 mod cli;
 mod completions;
 mod config;
@@ -20,7 +21,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use cli::{Cli, Commands, CompletionsCommand, ConfigCommand};
+use cli::{AgentCommand, Cli, Commands, CompletionsCommand, ConfigCommand};
 use config::{CONFIG_FILE, Config};
 use output::Output;
 use util::OAV_DIR;
@@ -134,6 +135,13 @@ pub fn run() -> (OutputFormat, Result<()>) {
                 },
             );
         }
+        Commands::Agent { command } => match command {
+            None | Some(AgentCommand::Install { force: false }) => {
+                agent::install(&root, false, &output)
+            }
+            Some(AgentCommand::Install { force: true }) => agent::install(&root, true, &output),
+            Some(AgentCommand::Uninstall) => agent::uninstall(&root, &output),
+        },
     };
 
     (cli.output, result)
@@ -212,6 +220,7 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     output.print_success("Initialized OpenAPI Validator.");
     output.print_detail("Config", &root.join(CONFIG_FILE).display().to_string());
     output.print_detail("Workspace", &root.join(OAV_DIR).display().to_string());
+    print_agent_hint(root, output);
     Ok(())
 }
 
@@ -310,6 +319,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     output.print_success("Initialized OpenAPI Validator.");
     output.print_detail("Config", &root.join(CONFIG_FILE).display().to_string());
     output.print_detail("Workspace", &root.join(OAV_DIR).display().to_string());
+    print_agent_hint(root, output);
     Ok(())
 }
 
@@ -602,6 +612,13 @@ fn parse_jobs_arg(raw: &str) -> Result<config::Jobs> {
         bail!("--jobs must be \"auto\" or a positive integer");
     }
     Ok(config::Jobs::Fixed(n))
+}
+
+fn print_agent_hint(root: &Path, output: &Output) {
+    if !agent::is_installed(root) {
+        output.println("");
+        output.println("  Tip: Run `oav agent install` to set up AI agent integration.");
+    }
 }
 
 fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> {

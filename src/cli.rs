@@ -88,6 +88,23 @@ pub enum Commands {
         #[command(subcommand)]
         command: CompletionsCommand,
     },
+    /// Manage AI agent integration
+    Agent {
+        #[command(subcommand)]
+        command: Option<AgentCommand>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AgentCommand {
+    /// Install the oav skill to .claude/skills/
+    Install {
+        /// Overwrite existing skill files
+        #[arg(long)]
+        force: bool,
+    },
+    /// Remove the installed oav skill
+    Uninstall,
 }
 
 #[derive(Subcommand, Debug)]
