@@ -80,7 +80,7 @@ pub enum Commands {
         #[arg(long)]
         nuke: bool,
         /// Skip confirmation prompt (use with --nuke)
-        #[arg(long, short)]
+        #[arg(long, short, requires = "nuke")]
         yes: bool,
     },
 }

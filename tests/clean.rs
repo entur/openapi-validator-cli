@@ -5,6 +5,7 @@ use assert_cmd::prelude::*;
 use common::oav_command;
 use predicates::prelude::*;
 use std::fs;
+use std::process::Stdio;
 use tempfile::TempDir;
 
 // --- oav clean (no flags) ---
@@ -185,13 +186,27 @@ fn nuke_without_yes_fails_without_tty() {
     let temp = TempDir::new().unwrap();
     fs::create_dir(temp.path().join(".oav")).unwrap();
 
-    // Without a TTY, dialoguer::Confirm will error
+    // Without a TTY, should give a clear error message
     oav_command()
         .current_dir(temp.path())
+        .stdin(Stdio::null())
         .args(["clean", "--nuke"])
         .assert()
-        .failure();
+        .failure()
+        .stderr(predicate::str::contains("rerun with --yes"));
 
     // .oav/ should still exist since confirm couldn't proceed
     assert!(temp.path().join(".oav").exists());
+}
+
+#[test]
+fn yes_without_nuke_rejected() {
+    let temp = TempDir::new().unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["clean", "--yes"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("--nuke"));
 }

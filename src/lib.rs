@@ -605,7 +605,8 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
     let has_config = config_path.exists();
     let gitignore_path = root.join(".gitignore");
     let has_gitignore_entries = gitignore_path.exists() && {
-        let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        let content = fs::read_to_string(&gitignore_path)
+            .with_context(|| format!("Failed to read {}", gitignore_path.display()))?;
         content
             .lines()
             .any(|l| l.trim() == ".oav/" || l.trim() == ".oavc")
@@ -617,12 +618,16 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
     }
 
     if !yes {
+        let term = console::Term::stderr();
+        if !term.is_term() {
+            bail!("--nuke requires confirmation; rerun with --yes in non-interactive environments");
+        }
         let confirmed = dialoguer::Confirm::with_theme(&dialoguer::theme::ColorfulTheme::default())
             .with_prompt(
                 "This will remove .oav/, .oavc, and oav entries from .gitignore. Continue?",
             )
             .default(false)
-            .interact_on(&console::Term::stderr())?;
+            .interact_on(&term)?;
         if !confirmed {
             output.println("Aborted.");
             return Ok(());
@@ -642,7 +647,8 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
     if has_gitignore_entries {
         util::remove_gitignore_entries(root, &[".oav/", ".oavc"])?;
         // Clean up the .gitignore file itself if oav entries were the only content
-        let gi = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        let gi = fs::read_to_string(&gitignore_path)
+            .with_context(|| format!("Failed to read {}", gitignore_path.display()))?;
         if gi.trim().is_empty() {
             fs::remove_file(&gitignore_path).context("Failed to remove empty .gitignore")?;
             removed.push(".gitignore");
