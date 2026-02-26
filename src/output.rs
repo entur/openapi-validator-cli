@@ -108,7 +108,6 @@ impl Output {
         }
     }
 
-
     pub fn print_success(&self, message: &str) {
         if self.quiet || self.json {
             return;

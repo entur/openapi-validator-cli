@@ -75,7 +75,14 @@ pub enum Commands {
         #[command(subcommand)]
         command: Option<ConfigCommand>,
     },
-    Clean,
+    Clean {
+        /// Remove everything oav created: .oav/, .oavc, and gitignore entries
+        #[arg(long)]
+        nuke: bool,
+        /// Skip confirmation prompt (use with --nuke)
+        #[arg(long, short)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]

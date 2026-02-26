@@ -129,6 +129,7 @@ If you want to use oav commands directly:
 - `oav config ignore` — add `.oavc` to `.gitignore`
 - `oav config unignore` — remove `.oavc` from `.gitignore`
 - `oav clean` — remove `.oav/`
+- `oav clean --nuke` — remove `.oav/`, `.oavc`, and gitignore entries (prompts for confirmation)
 
 ### Output Modes
 

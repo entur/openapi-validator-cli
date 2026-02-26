@@ -115,7 +115,7 @@ pub fn run() -> (OutputFormat, Result<()>) {
             },
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
-        Commands::Clean => cmd_clean(&root, &output),
+        Commands::Clean { nuke, yes } => cmd_clean(&root, &output, nuke, yes),
     };
 
     (cli.output, result)
@@ -246,7 +246,9 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     if matches!(cfg.mode, cli::Mode::Server | cli::Mode::Both) {
         let names = generators::server_names();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
-            .with_prompt("Server generators (space to toggle, enter to confirm, or leave empty for all)")
+            .with_prompt(
+                "Server generators (space to toggle, enter to confirm, or leave empty for all)",
+            )
             .items(&names)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;
@@ -257,7 +259,9 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     if matches!(cfg.mode, cli::Mode::Client | cli::Mode::Both) {
         let names = generators::client_names();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
-            .with_prompt("Client generators (space to toggle, enter to confirm, or leave empty for all)")
+            .with_prompt(
+                "Client generators (space to toggle, enter to confirm, or leave empty for all)",
+            )
             .items(&names)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;
@@ -582,13 +586,71 @@ fn parse_jobs_arg(raw: &str) -> Result<config::Jobs> {
     Ok(config::Jobs::Fixed(n))
 }
 
-fn cmd_clean(root: &Path, output: &Output) -> Result<()> {
-    let path = root.join(OAV_DIR);
-    if path.exists() {
-        fs::remove_dir_all(&path).context("Failed to remove .oav directory")?;
-        output.print_success(&format!("Removed {}", path.display()));
-    } else {
-        output.println("No .oav directory found.");
+fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> {
+    if !nuke {
+        let path = root.join(OAV_DIR);
+        if path.exists() {
+            fs::remove_dir_all(&path).context("Failed to remove .oav directory")?;
+            output.print_success(&format!("Removed {}", path.display()));
+        } else {
+            output.println("No .oav directory found.");
+        }
+        return Ok(());
     }
+
+    // --nuke: remove everything oav created
+    let oav_path = root.join(OAV_DIR);
+    let config_path = root.join(CONFIG_FILE);
+    let has_oav = oav_path.exists();
+    let has_config = config_path.exists();
+    let gitignore_path = root.join(".gitignore");
+    let has_gitignore_entries = gitignore_path.exists() && {
+        let content = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        content
+            .lines()
+            .any(|l| l.trim() == ".oav/" || l.trim() == ".oavc")
+    };
+
+    if !has_oav && !has_config && !has_gitignore_entries {
+        output.println("Nothing to clean.");
+        return Ok(());
+    }
+
+    if !yes {
+        let confirmed = dialoguer::Confirm::with_theme(&dialoguer::theme::ColorfulTheme::default())
+            .with_prompt(
+                "This will remove .oav/, .oavc, and oav entries from .gitignore. Continue?",
+            )
+            .default(false)
+            .interact_on(&console::Term::stderr())?;
+        if !confirmed {
+            output.println("Aborted.");
+            return Ok(());
+        }
+    }
+
+    let mut removed = Vec::new();
+
+    if has_oav {
+        fs::remove_dir_all(&oav_path).context("Failed to remove .oav directory")?;
+        removed.push(".oav/");
+    }
+    if has_config {
+        fs::remove_file(&config_path).context("Failed to remove .oavc")?;
+        removed.push(".oavc");
+    }
+    if has_gitignore_entries {
+        util::remove_gitignore_entries(root, &[".oav/", ".oavc"])?;
+        // Clean up the .gitignore file itself if oav entries were the only content
+        let gi = fs::read_to_string(&gitignore_path).unwrap_or_default();
+        if gi.trim().is_empty() {
+            fs::remove_file(&gitignore_path).context("Failed to remove empty .gitignore")?;
+            removed.push(".gitignore");
+        } else {
+            removed.push(".gitignore entries");
+        }
+    }
+
+    output.print_success(&format!("Removed {}", removed.join(", ")));
     Ok(())
 }
