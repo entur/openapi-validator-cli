@@ -1,4 +1,5 @@
 mod cli;
+mod completions;
 mod config;
 mod docker;
 mod generators;
@@ -19,7 +20,7 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use cli::{Cli, Commands, ConfigCommand};
+use cli::{Cli, Commands, CompletionsCommand, ConfigCommand};
 use config::{CONFIG_FILE, Config};
 use output::Output;
 use util::OAV_DIR;
@@ -116,6 +117,21 @@ pub fn run() -> (OutputFormat, Result<()>) {
         ),
         Commands::Config { command } => cmd_config(&root, &output, command),
         Commands::Clean { nuke, yes } => cmd_clean(&root, &output, nuke, yes),
+        Commands::Completions { command } => {
+            return (
+                cli.output,
+                match command {
+                    CompletionsCommand::Generate { shell } => {
+                        completions::generate(shell);
+                        Ok(())
+                    }
+                    CompletionsCommand::Install { shell, yes } => completions::install(shell, yes),
+                    CompletionsCommand::Uninstall { shell, yes } => {
+                        completions::uninstall(shell, yes)
+                    }
+                },
+            );
+        }
     };
 
     (cli.output, result)

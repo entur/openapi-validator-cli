@@ -131,6 +131,19 @@ If you want to use oav commands directly:
 - `oav clean` — remove `.oav/`
 - `oav clean --nuke` — remove `.oav/`, `.oavc`, and gitignore entries (prompts for confirmation)
 
+### Shell Completions
+
+```bash
+oav completions install              # auto-detect shell and install
+oav completions install --shell zsh  # explicit shell
+oav completions uninstall            # remove installed completions
+oav completions generate bash        # print script to stdout
+```
+
+Homebrew users get completions automatically on `brew install`.
+
+Supported shells for automatic install: **bash**, **zsh**, **fish**. For elvish and powershell, use `generate` and follow the printed instructions.
+
 ### Output Modes
 
 - Default: step summaries plus per-generator progress for generate/compile

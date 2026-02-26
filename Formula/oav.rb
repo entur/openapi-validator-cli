@@ -27,6 +27,7 @@ class Oav < Formula
 
   def install
     bin.install "oav"
+    generate_completions_from_executable(bin/"oav", "completions", "generate")
   end
 
   test do

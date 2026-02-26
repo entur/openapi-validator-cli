@@ -83,6 +83,38 @@ pub enum Commands {
         #[arg(long, short, requires = "nuke")]
         yes: bool,
     },
+    /// Generate, install, or uninstall shell completions
+    Completions {
+        #[command(subcommand)]
+        command: CompletionsCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+pub enum CompletionsCommand {
+    /// Print completion script to stdout
+    Generate {
+        /// Target shell
+        shell: clap_complete::Shell,
+    },
+    /// Install completions for the current user
+    Install {
+        /// Override auto-detected shell (bash, zsh, fish, elvish, powershell)
+        #[arg(long)]
+        shell: Option<clap_complete::Shell>,
+        /// Skip confirmation prompts
+        #[arg(long, short)]
+        yes: bool,
+    },
+    /// Remove installed completions
+    Uninstall {
+        /// Override auto-detected shell (bash, zsh, fish, elvish, powershell)
+        #[arg(long)]
+        shell: Option<clap_complete::Shell>,
+        /// Skip confirmation prompts
+        #[arg(long, short)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
