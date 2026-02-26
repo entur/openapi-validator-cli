@@ -5,7 +5,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use crate::cli::Mode;
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::docker;
 use crate::generators;
 use crate::output::Output;
@@ -42,11 +42,12 @@ pub fn run(root: &Path, config: &Config, output: &Output) -> Result<bool> {
         )?);
     }
 
-    if config.jobs <= 1 {
+    let jobs = config::resolve_jobs(config.jobs);
+    if jobs <= 1 {
         return run_sequential(root, &tasks, &reports_root, output, timeout);
     }
 
-    run_parallel(root, &tasks, &reports_root, output, timeout, config.jobs)
+    run_parallel(root, &tasks, &reports_root, output, timeout, jobs)
 }
 
 fn run_single_compile(

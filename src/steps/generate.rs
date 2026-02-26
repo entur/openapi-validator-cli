@@ -6,7 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use crate::cli::Mode;
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::docker;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_error, append_status, to_posix_path, write_log_header};
@@ -47,7 +47,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             reports_root: &reports_root,
             output,
             timeout,
-            jobs: config.jobs,
+            jobs: config::resolve_jobs(config.jobs),
         })?
     {
         failures += 1;
@@ -65,7 +65,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             reports_root: &reports_root,
             output,
             timeout,
-            jobs: config.jobs,
+            jobs: config::resolve_jobs(config.jobs),
         })?
     {
         failures += 1;

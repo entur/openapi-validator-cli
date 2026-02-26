@@ -69,7 +69,7 @@ pub enum Commands {
         #[arg(long)]
         search_depth: Option<usize>,
         #[arg(short = 'j', long)]
-        jobs: Option<usize>,
+        jobs: Option<String>,
     },
     Config {
         #[command(subcommand)]

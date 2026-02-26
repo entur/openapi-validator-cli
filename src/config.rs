@@ -1,11 +1,66 @@
 use anyhow::{Context, Result, bail};
-use serde::{Deserialize, Serialize};
+use serde::de::{self, Visitor};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::HashMap;
+use std::fmt;
 use std::fs;
 use std::path::Path;
 
 use crate::cli::{Linter, Mode};
 use crate::generators;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Jobs {
+    Auto,
+    Fixed(usize), // guaranteed >= 1
+}
+
+impl Serialize for Jobs {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Jobs::Auto => serializer.serialize_str("auto"),
+            Jobs::Fixed(n) => serializer.serialize_u64(*n as u64),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Jobs {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct JobsVisitor;
+
+        impl<'de> Visitor<'de> for JobsVisitor {
+            type Value = Jobs;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("\"auto\" or a positive integer")
+            }
+
+            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Jobs, E> {
+                if value == 0 {
+                    return Err(E::custom("jobs must be \"auto\" or a positive integer"));
+                }
+                Ok(Jobs::Fixed(value as usize))
+            }
+
+            fn visit_i64<E: de::Error>(self, value: i64) -> Result<Jobs, E> {
+                if value <= 0 {
+                    return Err(E::custom("jobs must be \"auto\" or a positive integer"));
+                }
+                Ok(Jobs::Fixed(value as usize))
+            }
+
+            fn visit_str<E: de::Error>(self, value: &str) -> Result<Jobs, E> {
+                if value.eq_ignore_ascii_case("auto") {
+                    Ok(Jobs::Auto)
+                } else {
+                    Err(E::custom("jobs must be \"auto\" or a positive integer"))
+                }
+            }
+        }
+
+        deserializer.deserialize_any(JobsVisitor)
+    }
+}
 
 pub const CONFIG_FILE: &str = ".oavc";
 
@@ -29,7 +84,7 @@ pub struct Config {
     pub manage_gitignore: bool,
     pub docker_timeout: u64,
     pub search_depth: usize,
-    pub jobs: usize,
+    pub jobs: Jobs,
 }
 
 impl Default for Config {
@@ -54,7 +109,7 @@ impl Default for Config {
             manage_gitignore: true,
             docker_timeout: 300,
             search_depth: 4,
-            jobs: 0,
+            jobs: Jobs::Auto,
         }
     }
 }
@@ -66,7 +121,9 @@ pub fn validate(config: &Config) -> Result<()> {
     if config.search_depth == 0 {
         bail!("search_depth must be greater than 0");
     }
-    // jobs == 0 means auto-detect, any positive value is valid
+    if let Jobs::Fixed(0) = config.jobs {
+        bail!("jobs must be \"auto\" or a positive integer");
+    }
     validate_generators(
         "server",
         &config.server_generators,
@@ -80,13 +137,13 @@ pub fn validate(config: &Config) -> Result<()> {
     Ok(())
 }
 
-pub fn resolve_jobs(raw: usize) -> usize {
-    if raw >= 1 {
-        return raw;
+pub fn resolve_jobs(jobs: Jobs) -> usize {
+    match jobs {
+        Jobs::Fixed(n) => n,
+        Jobs::Auto => std::thread::available_parallelism()
+            .map(|n| n.get().min(4))
+            .unwrap_or(1),
     }
-    std::thread::available_parallelism()
-        .map(|n| n.get().min(4))
-        .unwrap_or(1)
 }
 
 pub fn load(root: &Path) -> Result<Config> {
@@ -145,7 +202,10 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
         "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
         "docker_timeout" | "docker-timeout" => println!("{}", config.docker_timeout),
         "search_depth" | "search-depth" => println!("{}", config.search_depth),
-        "jobs" => println!("{}", config.jobs),
+        "jobs" => match config.jobs {
+            Jobs::Auto => println!("auto"),
+            Jobs::Fixed(n) => println!("{n}"),
+        },
         _ => bail!("Unknown config key: {key}"),
     }
     Ok(())
@@ -210,7 +270,10 @@ pub fn get_json_value(config: &Config, key: &str) -> Result<serde_json::Value> {
         "manage_gitignore" | "manage-gitignore" => serde_json::Value::Bool(config.manage_gitignore),
         "docker_timeout" | "docker-timeout" => serde_json::to_value(config.docker_timeout)?,
         "search_depth" | "search-depth" => serde_json::to_value(config.search_depth)?,
-        "jobs" => serde_json::to_value(config.jobs)?,
+        "jobs" => match config.jobs {
+            Jobs::Auto => serde_json::Value::String("auto".to_string()),
+            Jobs::Fixed(n) => serde_json::to_value(n)?,
+        },
         _ => bail!("Unknown config key: {key}"),
     };
     Ok(value)
@@ -306,10 +369,20 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
             config.search_depth = depth;
         }
         "jobs" => {
-            let n: usize = value.trim().parse().map_err(|_| {
-                anyhow::anyhow!("Invalid jobs: {value} (expected non-negative integer)")
-            })?;
-            config.jobs = n;
+            let trimmed = value.trim();
+            if trimmed.eq_ignore_ascii_case("auto") {
+                config.jobs = Jobs::Auto;
+            } else {
+                let n: usize = trimmed.parse().map_err(|_| {
+                    anyhow::anyhow!(
+                        "Invalid jobs: {value} (expected \"auto\" or a positive integer)"
+                    )
+                })?;
+                if n == 0 {
+                    bail!("jobs must be \"auto\" or a positive integer");
+                }
+                config.jobs = Jobs::Fixed(n);
+            }
         }
         _ => bail!("Unknown config key: {key}"),
     }

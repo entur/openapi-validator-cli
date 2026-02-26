@@ -598,13 +598,31 @@ fn config_print_json_reflects_custom_values() {
 // ── jobs config field ───────────────────────────────────────────────────
 
 #[test]
-fn set_jobs_zero_accepted() {
+fn set_jobs_auto_accepted() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "auto"])
+        .assert()
+        .success();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "jobs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto"));
+}
+
+#[test]
+fn set_jobs_zero_rejected() {
     let temp = TempDir::new().unwrap();
     oav_command()
         .current_dir(temp.path())
         .args(["config", "set", "jobs", "0"])
         .assert()
-        .success();
+        .failure()
+        .stderr(predicate::str::contains("positive integer"));
 }
 
 #[test]
@@ -625,7 +643,7 @@ fn set_jobs_valid_accepted() {
 }
 
 #[test]
-fn set_jobs_json() {
+fn set_jobs_fixed_json() {
     let temp = TempDir::new().unwrap();
     oav_command()
         .current_dir(temp.path())
@@ -643,6 +661,24 @@ fn set_jobs_json() {
 }
 
 #[test]
+fn set_jobs_auto_json() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "jobs", "auto"])
+        .assert()
+        .success();
+
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "get", "jobs", "--output", "json"]),
+    );
+    assert_eq!(json["key"], "jobs");
+    assert_eq!(json["value"], "auto");
+}
+
+#[test]
 fn set_jobs_negative_rejected() {
     let temp = TempDir::new().unwrap();
     oav_command()
@@ -651,4 +687,28 @@ fn set_jobs_negative_rejected() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("Invalid jobs"));
+}
+
+#[test]
+fn load_jobs_auto_from_yaml() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join(".oavc"), "jobs: auto\n").unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "jobs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("auto"));
+}
+
+#[test]
+fn load_jobs_numeric_from_yaml() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join(".oavc"), "jobs: 3\n").unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "jobs"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("3"));
 }
