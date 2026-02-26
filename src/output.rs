@@ -108,7 +108,7 @@ impl Output {
         }
     }
 
-    pub fn println_always(&self, message: &str) {
+    pub fn println_ignore_quiet(&self, message: &str) {
         if !self.json {
             println!("{message}");
         }

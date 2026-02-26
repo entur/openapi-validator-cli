@@ -4,6 +4,7 @@ mod common;
 use assert_cmd::prelude::*;
 use common::{docker_available, fixture_path, oav_command, write_config, write_config_with_linter};
 use predicates::prelude::*;
+use serde_json::Value;
 use std::error::Error;
 use std::fs;
 use tempfile::TempDir;
@@ -334,5 +335,113 @@ fn default_linter_is_spectral() -> Result<(), Box<dyn Error>> {
         status.contains("lint\tspec\tspectral\t"),
         "expected spectral in status.tsv, got: {status}"
     );
+    Ok(())
+}
+
+// ── JSON output for validate ────────────────────────────────────────────
+
+#[test]
+fn infra_error_json_has_error_and_exit_code() {
+    let temp = TempDir::new().unwrap();
+    let output = oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--output", "json"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let json: Value = serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+    assert!(json["error"].is_string(), "should have an error string");
+    assert_eq!(json["exit_code"], 2);
+}
+
+#[test]
+#[ignore]
+fn valid_spec_json_report_schema() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("valid.yml"), root.join("valid.yml"))?;
+    write_config(root, "valid.yml")?;
+
+    let output = oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--skip-generate",
+            "--skip-compile",
+            "--ruleset",
+            SPECTRAL_OAS_RULESET,
+            "--output",
+            "json",
+        ])
+        .output()?;
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let json: Value = serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+
+    // Top-level fields
+    assert!(json["spec"].is_string());
+    assert!(json["mode"].is_string());
+
+    // Phases
+    assert!(json["phases"].is_object());
+    let lint = &json["phases"]["lint"];
+    assert!(lint.is_object(), "lint phase should be present");
+    assert!(lint["linter"].is_string());
+    assert!(lint["status"].is_string());
+    assert!(lint.get("log").is_some());
+
+    // Summary
+    let summary = &json["summary"];
+    assert!(summary["total"].is_number());
+    assert!(summary["passed"].is_number());
+    assert!(summary["failed"].is_number());
+
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn invalid_spec_json_report_shows_failure() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("invalid.yml"), root.join("invalid.yml"))?;
+    write_config(root, "invalid.yml")?;
+
+    let output = oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--skip-generate",
+            "--skip-compile",
+            "--ruleset",
+            SPECTRAL_OAS_RULESET,
+            "--output",
+            "json",
+        ])
+        .output()?;
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "failing validation should exit with code 1"
+    );
+
+    let stdout = String::from_utf8(output.stdout)?;
+    let json: Value = serde_json::from_str(&stdout).expect("stdout should be valid JSON");
+
+    assert_eq!(json["phases"]["lint"]["status"], "fail");
+    assert!(json["summary"]["failed"].as_u64().unwrap() > 0);
+
     Ok(())
 }

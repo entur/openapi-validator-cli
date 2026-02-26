@@ -4,6 +4,7 @@ mod common;
 use assert_cmd::prelude::*;
 use common::oav_command;
 use predicates::prelude::*;
+use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
 
@@ -450,4 +451,145 @@ fn config_list_generators_shows_all() {
         .success()
         .stdout(predicate::str::contains("spring"))
         .stdout(predicate::str::contains("typescript-axios"));
+}
+
+// ── JSON output for config subcommands ──────────────────────────────────
+
+fn parse_json_stdout(cmd: &mut std::process::Command) -> Value {
+    let output = cmd.output().expect("failed to execute oav");
+    assert!(output.status.success(), "command failed: {:?}", output);
+    let stdout = String::from_utf8(output.stdout).expect("non-UTF-8 stdout");
+    serde_json::from_str(&stdout).expect("stdout is not valid JSON")
+}
+
+#[test]
+fn config_get_json_returns_key_and_value() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "get", "linter", "--output", "json"]),
+    );
+    assert_eq!(json["key"], "linter");
+    assert_eq!(json["value"], "spectral");
+}
+
+#[test]
+fn config_get_json_numeric_field() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(oav_command().current_dir(temp.path()).args([
+        "config",
+        "get",
+        "docker_timeout",
+        "--output",
+        "json",
+    ]));
+    assert_eq!(json["key"], "docker_timeout");
+    assert_eq!(json["value"], 300);
+}
+
+#[test]
+fn config_get_json_boolean_field() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "get", "lint", "--output", "json"]),
+    );
+    assert_eq!(json["key"], "lint");
+    assert_eq!(json["value"], true);
+}
+
+#[test]
+fn config_validate_json_valid() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "validate", "--output", "json"]),
+    );
+    assert_eq!(json["valid"], true);
+}
+
+#[test]
+fn config_validate_json_invalid_exits_nonzero() {
+    let temp = TempDir::new().unwrap();
+    fs::write(temp.path().join(".oavc"), "docker_timeout: 0\n").unwrap();
+    // Invalid config should fail even with --output json
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "validate", "--output", "json"])
+        .assert()
+        .failure();
+}
+
+#[test]
+fn config_list_generators_json_has_server_and_client() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(oav_command().current_dir(temp.path()).args([
+        "config",
+        "list-generators",
+        "--output",
+        "json",
+    ]));
+    let server = json["server"]
+        .as_array()
+        .expect("server should be an array");
+    let client = json["client"]
+        .as_array()
+        .expect("client should be an array");
+    assert!(!server.is_empty(), "server generators should not be empty");
+    assert!(!client.is_empty(), "client generators should not be empty");
+    assert!(server.iter().any(|v| v == "spring"));
+    assert!(client.iter().any(|v| v == "typescript-axios"));
+}
+
+#[test]
+fn config_print_json_has_all_fields() {
+    let temp = TempDir::new().unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "--output", "json"]),
+    );
+    let obj = json.as_object().expect("config print should be an object");
+    let expected_fields = [
+        "spec",
+        "mode",
+        "lint",
+        "generate",
+        "compile",
+        "server_generators",
+        "client_generators",
+        "generator_overrides",
+        "generator_image",
+        "redocly_image",
+        "linter",
+        "spectral_image",
+        "spectral_ruleset",
+        "spectral_fail_severity",
+        "manage_gitignore",
+        "docker_timeout",
+        "search_depth",
+    ];
+    for field in &expected_fields {
+        assert!(obj.contains_key(*field), "missing field: {field}");
+    }
+}
+
+#[test]
+fn config_print_json_reflects_custom_values() {
+    let temp = TempDir::new().unwrap();
+    fs::write(
+        temp.path().join(".oavc"),
+        "linter: redocly\ndocker_timeout: 120\n",
+    )
+    .unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "--output", "json"]),
+    );
+    assert_eq!(json["linter"], "redocly");
+    assert_eq!(json["docker_timeout"], 120);
 }

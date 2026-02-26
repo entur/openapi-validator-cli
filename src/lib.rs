@@ -19,12 +19,12 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-use cli::{Cli, Commands, ConfigCommand, OutputFormat};
+use cli::{Cli, Commands, ConfigCommand};
 use config::{CONFIG_FILE, Config};
 use output::Output;
 use util::OAV_DIR;
 
-pub use cli::OutputFormat as PubOutputFormat;
+pub use cli::OutputFormat;
 
 static ASSETS: Dir = include_dir!("$CARGO_MANIFEST_DIR/assets");
 
@@ -323,7 +323,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     output.print_summary(passed, failed);
 
     output.println("");
-    output.println_always(&format!(
+    output.println_ignore_quiet(&format!(
         "Dashboard: {}",
         root.join(OAV_DIR)
             .join("reports")
