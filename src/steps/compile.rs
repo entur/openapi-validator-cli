@@ -11,7 +11,7 @@ use crate::generators;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_status, write_log_header};
 
-use super::generate::TaskResult;
+use super::TaskResult;
 
 struct Task {
     scope: String,
@@ -53,7 +53,9 @@ fn run_single_compile(
     root: &Path,
     task: &Task,
     reports_root: &Path,
+    output: &Output,
     timeout: Duration,
+    quiet: bool,
 ) -> Result<TaskResult> {
     let report_dir = reports_root.join(&task.scope);
     fs::create_dir_all(&report_dir)?;
@@ -79,7 +81,11 @@ fn run_single_compile(
         .arg("--rm")
         .arg(&task.service);
 
-    let success = docker::run_with_logging_quiet(&mut command, &log_path, timeout)?;
+    let success = if quiet {
+        docker::run_with_logging_quiet(&mut command, &log_path, timeout)?
+    } else {
+        docker::run_with_logging(&mut command, &log_path, output, timeout)?
+    };
 
     Ok(TaskResult {
         name: task.name.clone(),
@@ -98,43 +104,21 @@ fn run_sequential(
 ) -> Result<bool> {
     let mut failures = 0;
     for task in tasks {
-        let report_dir = reports_root.join(&task.scope);
-        fs::create_dir_all(&report_dir)?;
-        let log_path = report_dir.join(format!("{}.log", task.service));
-        let project_dir = root.join(OAV_DIR);
-        let compose_path = project_dir.join("docker-compose.yaml");
-        let command_line = format!(
-            "$ docker compose -f {compose} --project-directory {project} run --rm {service}",
-            compose = compose_path.display(),
-            project = project_dir.display(),
-            service = task.service
-        );
-        write_log_header(&log_path, &command_line)?;
-
         let label = format!("Compile {} {}", task.scope, task.name);
         output.substep_start(&label);
-        let mut command = Command::new("docker");
-        command
-            .arg("compose")
-            .arg("-f")
-            .arg(&compose_path)
-            .arg("--project-directory")
-            .arg(&project_dir)
-            .arg("run")
-            .arg("--rm")
-            .arg(&task.service);
 
-        let success = docker::run_with_logging(&mut command, &log_path, output, timeout)?;
+        let result = run_single_compile(root, task, reports_root, output, timeout, false)?;
+
         append_status(
             root,
             "compile",
             &task.scope,
             &task.name,
-            if success { "ok" } else { "fail" },
-            &log_path,
+            if result.success { "ok" } else { "fail" },
+            &result.log_path,
         )?;
-        output.substep_finish(&label, success);
-        if !success {
+        output.substep_finish(&label, result.success);
+        if !result.success {
             failures += 1;
         }
     }
@@ -162,7 +146,8 @@ fn run_parallel(
                     let label = format!("Compile {} {}", task.scope, task.name);
                     let spinner = mp_ref.map(|m| output.add_parallel_spinner(m, &label));
                     s.spawn(move || {
-                        let result = run_single_compile(root, task, reports_root, timeout);
+                        let result =
+                            run_single_compile(root, task, reports_root, output, timeout, true);
                         if let Some(mp) = mp_ref {
                             let success = result.as_ref().map(|r| r.success).unwrap_or(false);
                             output.finish_parallel_spinner(mp, spinner.flatten(), &label, success);
@@ -172,7 +157,10 @@ fn run_parallel(
                 })
                 .collect();
 
-            handles.into_iter().map(|h| h.join().unwrap()).collect()
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("compile thread panicked"))
+                .collect()
         });
 
         for result in results {

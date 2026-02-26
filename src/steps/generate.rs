@@ -11,6 +11,8 @@ use crate::docker;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_error, append_status, to_posix_path, write_log_header};
 
+use super::TaskResult;
+
 struct ScopeContext<'a> {
     root: &'a Path,
     spec_path: &'a Path,
@@ -23,13 +25,6 @@ struct ScopeContext<'a> {
     output: &'a Output,
     timeout: Duration,
     jobs: usize,
-}
-
-pub struct TaskResult {
-    pub name: String,
-    pub scope: String,
-    pub success: bool,
-    pub log_path: PathBuf,
 }
 
 pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
@@ -79,7 +74,12 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
     Ok(failures == 0)
 }
 
-fn run_single_generator(ctx: &ScopeContext, name: &str, config_path: &Path) -> Result<TaskResult> {
+fn run_single_generator(
+    ctx: &ScopeContext,
+    name: &str,
+    config_path: &Path,
+    quiet: bool,
+) -> Result<TaskResult> {
     let report_dir = ctx.reports_root.join(ctx.scope);
     let log_path = report_dir.join(format!("{name}.log"));
     let config_rel = config_path
@@ -116,7 +116,11 @@ fn run_single_generator(ctx: &ScopeContext, name: &str, config_path: &Path) -> R
         .arg("-c")
         .arg(container_config);
 
-    let success = docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?;
+    let success = if quiet {
+        docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?
+    } else {
+        docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?
+    };
 
     Ok(TaskResult {
         name: name.to_string(),
@@ -155,7 +159,7 @@ fn run_sequential(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<b
         let label = format!("Generate {} {name}", ctx.scope);
         ctx.output.substep_start(&label);
 
-        let result = run_single_generator_sequential(ctx, name, config_path)?;
+        let result = run_single_generator(ctx, name, config_path, false)?;
 
         append_status(
             ctx.root,
@@ -173,57 +177,6 @@ fn run_sequential(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<b
     Ok(failures == 0)
 }
 
-fn run_single_generator_sequential(
-    ctx: &ScopeContext,
-    name: &str,
-    config_path: &Path,
-) -> Result<TaskResult> {
-    let report_dir = ctx.reports_root.join(ctx.scope);
-    let log_path = report_dir.join(format!("{name}.log"));
-    let config_rel = config_path
-        .strip_prefix(ctx.root)
-        .context("Generator config path is outside repository")?;
-    let container_config = format!("/work/{}", to_posix_path(config_rel));
-    let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
-
-    let command_line = format!(
-        "$ docker run --rm {user} -v {root}:/work -w /work/{oav} {image} generate -i {spec} -c {config}",
-        user = docker::user_flag(),
-        root = ctx.root.display(),
-        oav = OAV_DIR,
-        image = ctx.generator_image,
-        spec = container_spec,
-        config = container_config
-    )
-    .replace("  ", " ");
-    write_log_header(&log_path, &command_line)?;
-
-    let mut command = Command::new("docker");
-    command
-        .arg("run")
-        .arg("--rm")
-        .args(docker::user_args())
-        .arg("-v")
-        .arg(format!("{}:/work", ctx.root.display()))
-        .arg("-w")
-        .arg(format!("/work/{OAV_DIR}"))
-        .arg(ctx.generator_image)
-        .arg("generate")
-        .arg("-i")
-        .arg(container_spec)
-        .arg("-c")
-        .arg(container_config);
-
-    let success = docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?;
-
-    Ok(TaskResult {
-        name: name.to_string(),
-        scope: ctx.scope.to_string(),
-        success,
-        log_path,
-    })
-}
-
 fn run_parallel(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<bool> {
     let mp = ctx.output.multi_progress();
     let mp_ref = mp.as_ref();
@@ -237,7 +190,7 @@ fn run_parallel(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<boo
                     let label = format!("Generate {} {name}", ctx.scope);
                     let spinner = mp_ref.map(|m| ctx.output.add_parallel_spinner(m, &label));
                     s.spawn(move || {
-                        let result = run_single_generator(ctx, name, config_path);
+                        let result = run_single_generator(ctx, name, config_path, true);
                         if let Some(mp) = mp_ref {
                             let success = result.as_ref().map(|r| r.success).unwrap_or(false);
                             ctx.output.finish_parallel_spinner(
@@ -252,7 +205,10 @@ fn run_parallel(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<boo
                 })
                 .collect();
 
-            handles.into_iter().map(|h| h.join().unwrap()).collect()
+            handles
+                .into_iter()
+                .map(|h| h.join().expect("generator thread panicked"))
+                .collect()
         });
 
         for result in results {
