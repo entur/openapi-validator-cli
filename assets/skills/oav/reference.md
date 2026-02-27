@@ -69,9 +69,9 @@
 
 ## Available generators
 
-**Server:** spring, aspnetcore, go-server, nodejs-express, python-fastapi, kotlin-spring, quarkus
+**Server:** aspnetcore, go-server, kotlin-spring, python-fastapi, spring, typescript-nestjs
 
-**Client:** typescript-axios, typescript-fetch, java, kotlin, python, csharp, go, swift5, dart
+**Client:** csharp, go, java, kotlin, python, typescript-axios, typescript-fetch, typescript-node
 
 ## Common error patterns
 

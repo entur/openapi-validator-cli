@@ -88,7 +88,7 @@ pub enum Commands {
         #[command(subcommand)]
         command: CompletionsCommand,
     },
-    /// Manage AI agent integration
+    /// Manage AI agent integration (defaults to install)
     Agent {
         #[command(subcommand)]
         command: Option<AgentCommand>,

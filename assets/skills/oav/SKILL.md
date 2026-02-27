@@ -1,7 +1,7 @@
 ---
 name: oav
 description: Validate, lint, and fix OpenAPI specs using the oav CLI. Use when the user works with OpenAPI specs, mentions API validation, linting, code generation errors, compile failures, .oavc config, or asks to check, fix, or set up validation for their API.
-argument-hint: "[validate | fix | init | question]"
+argument-hint: "[validate | init | question]"
 ---
 
 oav validates OpenAPI specs through three phases:
