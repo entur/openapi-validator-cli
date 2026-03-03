@@ -123,13 +123,16 @@ If you want to use oav commands directly:
 
 ## Commands
 
-- `oav init` — create `.oav/`, scaffold `.oavc`, and add gitignore entries
+- `oav init` — scaffold `.oav/` and `.oavc`. Omit `--spec` to launch an interactive wizard
 - `oav validate` — run lint → generate → compile and write reports
 - `oav config [get|set|edit|print]` — manage `.oavc`
-- `oav config ignore` — add `.oavc` to `.gitignore`
-- `oav config unignore` — remove `.oavc` from `.gitignore`
+- `oav config validate` — check the current config for errors
+- `oav config list-generators` — list all supported generators
+- `oav config ignore` / `unignore` — add or remove `.oavc` from `.gitignore`
 - `oav clean` — remove `.oav/`
 - `oav clean --nuke` — remove `.oav/`, `.oavc`, and gitignore entries (prompts for confirmation)
+- `oav agent install` / `uninstall` — install or remove the Claude Code skill for oav
+- `oav completions install` / `uninstall` — manage shell completions
 
 ### Shell Completions
 
@@ -149,6 +152,25 @@ Supported shells for automatic install: **bash**, **zsh**, **fish**. For elvish 
 - Default: step summaries plus per-generator progress for generate/compile
 - `-v, --verbose`: stream full tool output
 - `-q, --quiet`: minimal output (still prints final locations)
+
+### Structured Output
+
+Use `--output json` for machine-readable JSON output (for CI pipelines, scripts, etc.). Mutually exclusive with `-v` and `-q`.
+
+```bash
+oav validate --output json
+```
+
+### Parallel Execution
+
+Use `-j` / `--jobs` to control parallelism during generate and compile steps:
+
+```bash
+oav validate -j4           # 4 parallel jobs
+oav validate --jobs auto   # auto-detect (default, capped at 4)
+```
+
+Also configurable via the `jobs` key in `.oavc`.
 
 ### Gitignore Behavior
 
@@ -173,7 +195,17 @@ client_generators:
   - typescript-axios
 generator_image: openapitools/openapi-generator-cli:v7.17.0
 redocly_image: redocly/cli:1.25.5
+linter: spectral
+spectral_image: stoplight/spectral:6
+spectral_ruleset: https://raw.githubusercontent.com/entur/api-guidelines/refs/tags/v2/.spectral.yml
+spectral_fail_severity: error
+manage_gitignore: true
+docker_timeout: 300
+search_depth: 4
+jobs: auto
 ```
+
+See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
 
 ## Generators
 

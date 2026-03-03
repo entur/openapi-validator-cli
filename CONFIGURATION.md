@@ -2,18 +2,26 @@
 
 ## .oavc Defaults
 
-| Key                   | Default                                      | Description                       |
-|-----------------------|----------------------------------------------|-----------------------------------|
-| `spec`                | —                                            | Path to OpenAPI spec (required)   |
-| `mode`                | `server`                                     | `server`, `client`, or `both`     |
-| `lint`                | `true`                                       | Run Redocly linting               |
-| `generate`            | `true`                                       | Generate code from spec           |
-| `compile`             | `true`                                       | Build generated code              |
-| `server_generators`   | `[]`                                         | Server generators to use          |
-| `client_generators`   | `[]`                                         | Client generators to use          |
-| `generator_overrides` | `{}`                                         | Custom config paths per generator |
-| `generator_image`     | `openapitools/openapi-generator-cli:v7.17.0` | OpenAPI Generator image           |
-| `redocly_image`       | `redocly/cli:1.25.5`                         | Redocly CLI image                 |
+| Key                      | Default                                      | Description                                          |
+|--------------------------|----------------------------------------------|------------------------------------------------------|
+| `spec`                   | —                                            | Path to OpenAPI spec (required)                      |
+| `mode`                   | `server`                                     | `server`, `client`, or `both`                        |
+| `lint`                   | `true`                                       | Run linting step                                     |
+| `generate`               | `true`                                       | Generate code from spec                              |
+| `compile`                | `true`                                       | Build generated code                                 |
+| `server_generators`      | `[]`                                         | Server generators to use                             |
+| `client_generators`      | `[]`                                         | Client generators to use                             |
+| `generator_overrides`    | `{}`                                         | Custom config paths per generator                    |
+| `generator_image`        | `openapitools/openapi-generator-cli:v7.17.0` | OpenAPI Generator Docker image                       |
+| `redocly_image`          | `redocly/cli:1.25.5`                         | Redocly CLI Docker image                             |
+| `linter`                 | `spectral`                                   | Linter to use: `spectral`, `redocly`, or `none`      |
+| `spectral_image`         | `stoplight/spectral:6`                       | Spectral Docker image                                |
+| `spectral_ruleset`       | Entur API guidelines v2                      | Spectral ruleset URL or local path                   |
+| `spectral_fail_severity` | `error`                                      | Min severity to fail: `error`, `warn`, `info`, `hint` |
+| `manage_gitignore`       | `true`                                       | Auto-manage `.gitignore` entries for `.oav/`         |
+| `docker_timeout`         | `300`                                        | Docker command timeout in seconds                    |
+| `search_depth`           | `4`                                          | Max directory depth for spec file search             |
+| `jobs`                   | `auto`                                       | Parallel jobs: `auto` or a positive integer          |
 
 When `server_generators` or `client_generators` is empty, all generators for that mode are used.
 
