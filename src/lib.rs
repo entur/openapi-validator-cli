@@ -2,6 +2,7 @@ mod agent;
 mod cli;
 mod completions;
 mod config;
+mod custom;
 mod docker;
 mod generators;
 mod json_report;
@@ -188,13 +189,18 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     if let Some(m) = args.mode {
         cfg.mode = m;
     }
+
+    let custom_defs = custom::load(root).unwrap_or_default();
+
     if let Some(gens) = args.server_generators {
         let gens: Vec<String> = gens
             .iter()
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("server", &gens, &generators::server_names())?;
+        let all = generators::all_server_names(&custom_defs);
+        let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+        config::validate_generators("server", &gens, &refs)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = args.client_generators {
@@ -203,7 +209,9 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("client", &gens, &generators::client_names())?;
+        let all = generators::all_client_names(&custom_defs);
+        let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+        config::validate_generators("client", &gens, &refs)?;
         cfg.client_generators = gens;
     }
 
@@ -213,7 +221,7 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
     let spec_path = util::normalize_spec_path(root, &spec)?;
     cfg.spec = Some(spec_path.to_string_lossy().to_string());
 
-    config::validate(&cfg)?;
+    config::validate(&cfg, &custom_defs)?;
     config::write(root, &cfg)?;
     util::extract_assets(root, &ASSETS)?;
 
@@ -237,6 +245,8 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
             util::add_gitignore_entries(root, &[".oavc"])?;
         }
     }
+
+    let custom_defs = custom::load(root).unwrap_or_default();
 
     // 1. Spec discovery
     let spec = match util::discover_spec(root, false, cfg.search_depth)? {
@@ -269,31 +279,33 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
         _ => cli::Mode::Both,
     };
 
-    // 3. Generator selection
+    // 3. Generator selection (built-in + custom)
     if matches!(cfg.mode, cli::Mode::Server | cli::Mode::Both) {
-        let names = generators::server_names();
+        let names = generators::all_server_names(&custom_defs);
+        let display: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
             .with_prompt(
                 "Server generators (space to toggle, enter to confirm, or leave empty for all)",
             )
-            .items(&names)
+            .items(&display)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;
         if !selections.is_empty() {
-            cfg.server_generators = selections.iter().map(|&i| names[i].to_string()).collect();
+            cfg.server_generators = selections.iter().map(|&i| names[i].clone()).collect();
         }
     }
     if matches!(cfg.mode, cli::Mode::Client | cli::Mode::Both) {
-        let names = generators::client_names();
+        let names = generators::all_client_names(&custom_defs);
+        let display: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
         let selections = dialoguer::MultiSelect::with_theme(&theme)
             .with_prompt(
                 "Client generators (space to toggle, enter to confirm, or leave empty for all)",
             )
-            .items(&names)
+            .items(&display)
             .interact_on_opt(&term)?
             .ok_or_else(cancelled)?;
         if !selections.is_empty() {
-            cfg.client_generators = selections.iter().map(|&i| names[i].to_string()).collect();
+            cfg.client_generators = selections.iter().map(|&i| names[i].clone()).collect();
         }
     }
 
@@ -312,7 +324,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
     };
 
     // 5. Write config and finish
-    config::validate(&cfg)?;
+    config::validate(&cfg, &custom_defs)?;
     config::write(root, &cfg)?;
     util::extract_assets(root, &ASSETS)?;
 
@@ -330,6 +342,9 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
         util::add_gitignore_entries(root, &[".oav/"])?;
     }
     util::extract_assets(root, &ASSETS)?;
+
+    let custom_defs = custom::load(root)?;
+
     if let Some(t) = args.docker_timeout {
         if t == 0 {
             bail!("--docker-timeout must be greater than 0");
@@ -368,7 +383,9 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("server", &gens, &generators::server_names())?;
+        let all = generators::all_server_names(&custom_defs);
+        let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+        config::validate_generators("server", &gens, &refs)?;
         cfg.server_generators = gens;
     }
     if let Some(gens) = args.client_generators {
@@ -377,7 +394,9 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
             .map(|g| g.trim().to_string())
             .filter(|g| !g.is_empty())
             .collect();
-        config::validate_generators("client", &gens, &generators::client_names())?;
+        let all = generators::all_client_names(&custom_defs);
+        let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+        config::validate_generators("client", &gens, &refs)?;
         cfg.client_generators = gens;
     }
     if args.skip_lint {
@@ -411,7 +430,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
         docker::ensure_available()?;
     }
 
-    config::validate(&cfg)?;
+    config::validate(&cfg, &custom_defs)?;
     util::prepare_runtime_dirs(root)?;
     config::write(root, &cfg)?;
 
@@ -429,7 +448,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     if cfg.generate {
         output.phase_header("Generate");
         let success = steps::run_step(output, "Generate", false, false, || {
-            steps::generate(root, &spec_path, &cfg, output)
+            steps::generate(root, &spec_path, &cfg, output, &custom_defs)
         })?;
         if !success {
             failures += 1;
@@ -440,7 +459,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
         if cfg.generate {
             output.phase_header("Compile");
             let success = steps::run_step(output, "Compile", false, false, || {
-                steps::compile(root, &cfg, output)
+                steps::compile(root, &cfg, output, &custom_defs)
             })?;
             if !success {
                 failures += 1;
@@ -494,6 +513,8 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
 }
 
 fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> Result<()> {
+    let custom_defs = custom::load(root).unwrap_or_default();
+
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
             let cfg = config::load(root)?;
@@ -510,13 +531,13 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
         }
         ConfigCommand::Set { key, value } => {
             let mut cfg = config::load(root)?;
-            config::set_value(&mut cfg, &key, value)?;
+            config::set_value(&mut cfg, &key, value, &custom_defs)?;
             config::write(root, &cfg)?;
             output.print_success(&format!("Updated {}", root.join(CONFIG_FILE).display()));
         }
         ConfigCommand::Validate => {
             let cfg = config::load(root)?;
-            config::validate(&cfg)?;
+            config::validate(&cfg, &custom_defs)?;
             if output.json {
                 println!(r#"{{"valid":true}}"#);
             } else {
@@ -524,6 +545,15 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             }
         }
         ConfigCommand::ListGenerators => {
+            let custom_info: Vec<json_report::CustomGeneratorInfo> = custom_defs
+                .iter()
+                .map(|d| json_report::CustomGeneratorInfo {
+                    name: d.name.clone(),
+                    scope: d.scope.clone(),
+                    has_compile: d.compile.is_some(),
+                })
+                .collect();
+
             if output.json {
                 let list = json_report::GeneratorList {
                     server: generators::server_names()
@@ -534,6 +564,7 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
                         .into_iter()
                         .map(String::from)
                         .collect(),
+                    custom: custom_info,
                 };
                 println!(
                     "{}",
@@ -549,6 +580,18 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
                 println!("Client generators:");
                 for g in generators::CLIENT_GENERATORS {
                     println!("  {}", g.name);
+                }
+                if !custom_defs.is_empty() {
+                    println!();
+                    println!("Custom generators:");
+                    for d in &custom_defs {
+                        let compile_marker = if d.compile.is_some() {
+                            ""
+                        } else {
+                            " (no compile)"
+                        };
+                        println!("  {} [{}]{}", d.name, d.scope, compile_marker);
+                    }
                 }
             }
         }

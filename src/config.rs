@@ -7,6 +7,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::cli::{Linter, Mode};
+use crate::custom::CustomGeneratorDef;
 use crate::generators;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,7 +115,7 @@ impl Default for Config {
     }
 }
 
-pub fn validate(config: &Config) -> Result<()> {
+pub fn validate(config: &Config, custom: &[CustomGeneratorDef]) -> Result<()> {
     if config.docker_timeout == 0 {
         bail!("docker_timeout must be greater than 0");
     }
@@ -124,16 +125,12 @@ pub fn validate(config: &Config) -> Result<()> {
     if let Jobs::Fixed(0) = config.jobs {
         bail!("jobs must be \"auto\" or a positive integer");
     }
-    validate_generators(
-        "server",
-        &config.server_generators,
-        &generators::server_names(),
-    )?;
-    validate_generators(
-        "client",
-        &config.client_generators,
-        &generators::client_names(),
-    )?;
+    let server_owned = generators::all_server_names(custom);
+    let client_owned = generators::all_client_names(custom);
+    let all_server: Vec<&str> = server_owned.iter().map(|s| s.as_str()).collect();
+    let all_client: Vec<&str> = client_owned.iter().map(|s| s.as_str()).collect();
+    validate_generators("server", &config.server_generators, &all_server)?;
+    validate_generators("client", &config.client_generators, &all_client)?;
     Ok(())
 }
 
@@ -279,7 +276,12 @@ pub fn get_json_value(config: &Config, key: &str) -> Result<serde_json::Value> {
     Ok(value)
 }
 
-pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
+pub fn set_value(
+    config: &mut Config,
+    key: &str,
+    value: String,
+    custom: &[CustomGeneratorDef],
+) -> Result<()> {
     let (base, subkey) = parse_key(key);
 
     match base {
@@ -298,7 +300,9 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            validate_generators("server", &gens, &generators::server_names())?;
+            let all = generators::all_server_names(custom);
+            let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+            validate_generators("server", &gens, &refs)?;
             config.server_generators = gens;
         }
         "client_generators" | "client-generators" => {
@@ -308,7 +312,9 @@ pub fn set_value(config: &mut Config, key: &str, value: String) -> Result<()> {
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())
                 .collect();
-            validate_generators("client", &gens, &generators::client_names())?;
+            let all = generators::all_client_names(custom);
+            let refs: Vec<&str> = all.iter().map(|s| s.as_str()).collect();
+            validate_generators("client", &gens, &refs)?;
             config.client_generators = gens;
         }
         "generator_overrides" | "generator-overrides" => {

@@ -72,3 +72,21 @@ pub fn server_names() -> Vec<&'static str> {
 pub fn client_names() -> Vec<&'static str> {
     CLIENT_GENERATORS.iter().map(|g| g.name).collect()
 }
+
+pub fn all_server_names(custom: &[crate::custom::CustomGeneratorDef]) -> Vec<String> {
+    let mut names: Vec<String> = SERVER_GENERATORS
+        .iter()
+        .map(|g| g.name.to_string())
+        .collect();
+    names.extend(crate::custom::server_names(custom));
+    names
+}
+
+pub fn all_client_names(custom: &[crate::custom::CustomGeneratorDef]) -> Vec<String> {
+    let mut names: Vec<String> = CLIENT_GENERATORS
+        .iter()
+        .map(|g| g.name.to_string())
+        .collect();
+    names.extend(crate::custom::client_names(custom));
+    names
+}

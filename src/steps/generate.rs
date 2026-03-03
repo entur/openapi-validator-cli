@@ -7,11 +7,17 @@ use std::time::Duration;
 
 use crate::cli::Mode;
 use crate::config::{self, Config};
+use crate::custom::CustomGeneratorDef;
 use crate::docker;
 use crate::output::Output;
 use crate::util::{OAV_DIR, append_error, append_status, to_posix_path, write_log_header};
 
 use super::TaskResult;
+
+enum GenerateTask {
+    Builtin { name: String, config_path: PathBuf },
+    Custom { def: CustomGeneratorDef },
+}
 
 struct ScopeContext<'a> {
     root: &'a Path,
@@ -21,13 +27,20 @@ struct ScopeContext<'a> {
     config_dir: &'a Path,
     requested: &'a [String],
     overrides: &'a HashMap<String, String>,
+    custom_defs: &'a [CustomGeneratorDef],
     reports_root: &'a Path,
     output: &'a Output,
     timeout: Duration,
     jobs: usize,
 }
 
-pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> Result<bool> {
+pub fn run(
+    root: &Path,
+    spec_path: &Path,
+    config: &Config,
+    output: &Output,
+    custom: &[CustomGeneratorDef],
+) -> Result<bool> {
     let reports_root = root.join(OAV_DIR).join("reports").join("generate");
     let server_dir = root.join(OAV_DIR).join("generators").join("server");
     let client_dir = root.join(OAV_DIR).join("generators").join("client");
@@ -44,6 +57,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             config_dir: &server_dir,
             requested: &config.server_generators,
             overrides: &config.generator_overrides,
+            custom_defs: custom,
             reports_root: &reports_root,
             output,
             timeout,
@@ -62,6 +76,7 @@ pub fn run(root: &Path, spec_path: &Path, config: &Config, output: &Output) -> R
             config_dir: &client_dir,
             requested: &config.client_generators,
             overrides: &config.generator_overrides,
+            custom_defs: custom,
             reports_root: &reports_root,
             output,
             timeout,
@@ -135,8 +150,8 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
     fs::create_dir_all(&report_dir).context("Failed to create generate report directory")?;
     let error_log = report_dir.join("_errors.log");
 
-    let configs = match resolve_configs(ctx.root, ctx.config_dir, ctx.requested, ctx.overrides) {
-        Ok(configs) => configs,
+    let tasks = match resolve_generate_tasks(ctx) {
+        Ok(tasks) => tasks,
         Err(err) => {
             append_error(&error_log, &err.to_string())?;
             append_status(
@@ -147,19 +162,145 @@ fn run_for_scope(ctx: &ScopeContext) -> Result<bool> {
     };
 
     if ctx.jobs <= 1 {
-        return run_sequential(ctx, &configs);
+        return run_sequential(ctx, &tasks);
     }
 
-    run_parallel(ctx, &configs)
+    run_parallel(ctx, &tasks)
 }
 
-fn run_sequential(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<bool> {
+fn resolve_generate_tasks(ctx: &ScopeContext) -> Result<Vec<GenerateTask>> {
+    let builtin_names: Vec<&str> = match ctx.scope {
+        "server" => crate::generators::server_names(),
+        "client" => crate::generators::client_names(),
+        _ => Vec::new(),
+    };
+    let scope_custom: Vec<&CustomGeneratorDef> = ctx
+        .custom_defs
+        .iter()
+        .filter(|d| d.scope == ctx.scope)
+        .collect();
+
+    if ctx.requested.is_empty() {
+        // All builtins + all custom for this scope
+        let builtin_configs = resolve_configs(ctx.root, ctx.config_dir, &[], ctx.overrides)?;
+        let mut tasks: Vec<GenerateTask> = builtin_configs
+            .into_iter()
+            .map(|(name, config_path)| GenerateTask::Builtin { name, config_path })
+            .collect();
+        for def in &scope_custom {
+            tasks.push(GenerateTask::Custom {
+                def: (*def).clone(),
+            });
+        }
+        return Ok(tasks);
+    }
+
+    let mut builtin_requested = Vec::new();
+    let mut tasks = Vec::new();
+
+    for name in ctx.requested {
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        if builtin_names.contains(&name) {
+            builtin_requested.push(name.to_string());
+        } else if let Some(def) = find_custom_by_name(&scope_custom, name) {
+            tasks.push(GenerateTask::Custom { def: def.clone() });
+        } else {
+            anyhow::bail!("Unknown {} generator: '{}'", ctx.scope, name);
+        }
+    }
+
+    if !builtin_requested.is_empty() {
+        let configs = resolve_configs(ctx.root, ctx.config_dir, &builtin_requested, ctx.overrides)?;
+        for (name, config_path) in configs {
+            tasks.insert(0, GenerateTask::Builtin { name, config_path });
+        }
+    }
+
+    if tasks.is_empty() {
+        anyhow::bail!("No generators resolved for scope '{}'", ctx.scope);
+    }
+
+    Ok(tasks)
+}
+
+/// Wrapper for `custom::find_by_name` that works on a slice of references.
+fn find_custom_by_name<'a>(
+    defs: &'a [&'a CustomGeneratorDef],
+    name: &str,
+) -> Option<&'a CustomGeneratorDef> {
+    defs.iter().find(|d| d.name == name).copied()
+}
+
+fn run_custom_generator(
+    ctx: &ScopeContext,
+    def: &CustomGeneratorDef,
+    quiet: bool,
+) -> Result<TaskResult> {
+    let report_dir = ctx.reports_root.join(ctx.scope);
+    let log_path = report_dir.join(format!("{}.log", def.name));
+    let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
+    let resolved_command = def.generate.command.replace("{spec}", &container_spec);
+
+    let command_line = format!(
+        "$ docker run --rm -v {root}:/work {image} sh -c \"{cmd}\"",
+        root = ctx.root.display(),
+        image = def.generate.image,
+        cmd = resolved_command,
+    );
+    write_log_header(&log_path, &command_line)?;
+
+    let mut command = Command::new("docker");
+    command
+        .arg("run")
+        .arg("--rm")
+        .arg("-v")
+        .arg(format!("{}:/work", ctx.root.display()))
+        .arg(&def.generate.image)
+        .arg("sh")
+        .arg("-c")
+        .arg(&resolved_command);
+
+    let success = if quiet {
+        docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?
+    } else {
+        docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?
+    };
+
+    Ok(TaskResult {
+        name: def.name.clone(),
+        scope: ctx.scope.to_string(),
+        success,
+        log_path,
+    })
+}
+
+fn run_task(ctx: &ScopeContext, task: &GenerateTask, quiet: bool) -> Result<TaskResult> {
+    match task {
+        GenerateTask::Builtin { name, config_path } => {
+            run_single_generator(ctx, name, config_path, quiet)
+        }
+        GenerateTask::Custom { def } => run_custom_generator(ctx, def, quiet),
+    }
+}
+
+fn task_name(task: &GenerateTask) -> &str {
+    match task {
+        GenerateTask::Builtin { name, .. } => name,
+        GenerateTask::Custom { def } => &def.name,
+    }
+}
+
+fn run_sequential(ctx: &ScopeContext, tasks: &[GenerateTask]) -> Result<bool> {
     let mut failures = 0;
-    for (name, config_path) in configs {
+    for task in tasks {
+        let name = task_name(task);
         let label = format!("Generate {} {name}", ctx.scope);
         ctx.output.substep_start(&label);
 
-        let result = run_single_generator(ctx, name, config_path, false)?;
+        let result = run_task(ctx, task, false)?;
 
         append_status(
             ctx.root,
@@ -177,20 +318,21 @@ fn run_sequential(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<b
     Ok(failures == 0)
 }
 
-fn run_parallel(ctx: &ScopeContext, configs: &[(String, PathBuf)]) -> Result<bool> {
+fn run_parallel(ctx: &ScopeContext, tasks: &[GenerateTask]) -> Result<bool> {
     let mp = ctx.output.multi_progress();
     let mp_ref = mp.as_ref();
     let mut all_failures = 0;
 
-    for chunk in configs.chunks(ctx.jobs) {
+    for chunk in tasks.chunks(ctx.jobs) {
         let results: Vec<Result<TaskResult>> = std::thread::scope(|s| {
             let handles: Vec<_> = chunk
                 .iter()
-                .map(|(name, config_path)| {
+                .map(|task| {
+                    let name = task_name(task);
                     let label = format!("Generate {} {name}", ctx.scope);
                     let spinner = mp_ref.map(|m| ctx.output.add_parallel_spinner(m, &label));
                     s.spawn(move || {
-                        let result = run_single_generator(ctx, name, config_path, true);
+                        let result = run_task(ctx, task, true);
                         if let Some(mp) = mp_ref {
                             let success = result.as_ref().map(|r| r.success).unwrap_or(false);
                             ctx.output.finish_parallel_spinner(
