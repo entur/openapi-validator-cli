@@ -513,9 +513,6 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
 }
 
 fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> Result<()> {
-    let cfg_for_custom = config::load(root)?;
-    let custom_defs = load_custom_defs(root, &cfg_for_custom)?;
-
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
             let cfg = config::load(root)?;
@@ -532,12 +529,16 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
         }
         ConfigCommand::Set { key, value } => {
             let mut cfg = config::load(root)?;
+            // Best-effort: if custom dir is broken, generator-list validation
+            // falls back to built-ins only. This keeps set/edit usable for recovery.
+            let custom_defs = load_custom_defs(root, &cfg).unwrap_or_default();
             config::set_value(&mut cfg, &key, value, &custom_defs)?;
             config::write(root, &cfg)?;
             output.print_success(&format!("Updated {}", root.join(CONFIG_FILE).display()));
         }
         ConfigCommand::Validate => {
             let cfg = config::load(root)?;
+            let custom_defs = load_custom_defs(root, &cfg)?;
             config::validate(&cfg, &custom_defs)?;
             if output.json {
                 println!(r#"{{"valid":true}}"#);
@@ -546,6 +547,8 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
             }
         }
         ConfigCommand::ListGenerators => {
+            let cfg = config::load(root)?;
+            let custom_defs = load_custom_defs(root, &cfg)?;
             let custom_info: Vec<json_report::CustomGeneratorInfo> = custom_defs
                 .iter()
                 .map(|d| json_report::CustomGeneratorInfo {
