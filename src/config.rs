@@ -83,6 +83,7 @@ pub struct Config {
     pub spectral_ruleset: String,
     pub spectral_fail_severity: String,
     pub manage_gitignore: bool,
+    pub custom_generators_dir: Option<String>,
     pub docker_timeout: u64,
     pub search_depth: usize,
     pub jobs: Jobs,
@@ -108,6 +109,7 @@ impl Default for Config {
                     .to_string(),
             spectral_fail_severity: "error".to_string(),
             manage_gitignore: true,
+            custom_generators_dir: None,
             docker_timeout: 300,
             search_depth: 4,
             jobs: Jobs::Auto,
@@ -197,6 +199,11 @@ pub fn print_value(config: &Config, key: &str) -> Result<()> {
             println!("{}", config.spectral_fail_severity)
         }
         "manage_gitignore" | "manage-gitignore" => println!("{}", config.manage_gitignore),
+        "custom_generators_dir" | "custom-generators-dir" => {
+            if let Some(dir) = &config.custom_generators_dir {
+                println!("{dir}");
+            }
+        }
         "docker_timeout" | "docker-timeout" => println!("{}", config.docker_timeout),
         "search_depth" | "search-depth" => println!("{}", config.search_depth),
         "jobs" => match config.jobs {
@@ -265,6 +272,9 @@ pub fn get_json_value(config: &Config, key: &str) -> Result<serde_json::Value> {
             serde_json::Value::String(config.spectral_fail_severity.clone())
         }
         "manage_gitignore" | "manage-gitignore" => serde_json::Value::Bool(config.manage_gitignore),
+        "custom_generators_dir" | "custom-generators-dir" => {
+            serde_json::to_value(&config.custom_generators_dir)?
+        }
         "docker_timeout" | "docker-timeout" => serde_json::to_value(config.docker_timeout)?,
         "search_depth" | "search-depth" => serde_json::to_value(config.search_depth)?,
         "jobs" => match config.jobs {
@@ -356,6 +366,14 @@ pub fn set_value(
             config.spectral_fail_severity = parse_fail_severity(&value)?;
         }
         "manage_gitignore" | "manage-gitignore" => config.manage_gitignore = parse_bool(&value)?,
+        "custom_generators_dir" | "custom-generators-dir" => {
+            let trimmed = value.trim().to_string();
+            if trimmed.is_empty() {
+                config.custom_generators_dir = None;
+            } else {
+                config.custom_generators_dir = Some(trimmed);
+            }
+        }
         "docker_timeout" | "docker-timeout" => {
             let secs: u64 = value.trim().parse().map_err(|_| {
                 anyhow::anyhow!("Invalid docker_timeout: {value} (expected positive integer)")

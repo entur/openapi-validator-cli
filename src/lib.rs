@@ -190,7 +190,7 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
         cfg.mode = m;
     }
 
-    let custom_defs = custom::load(root).unwrap_or_default();
+    let custom_defs = load_custom_defs(root, &cfg).unwrap_or_default();
 
     if let Some(gens) = args.server_generators {
         let gens: Vec<String> = gens
@@ -246,7 +246,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
         }
     }
 
-    let custom_defs = custom::load(root).unwrap_or_default();
+    let custom_defs = load_custom_defs(root, &cfg).unwrap_or_default();
 
     // 1. Spec discovery
     let spec = match util::discover_spec(root, false, cfg.search_depth)? {
@@ -343,7 +343,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     }
     util::extract_assets(root, &ASSETS)?;
 
-    let custom_defs = custom::load(root)?;
+    let custom_defs = load_custom_defs(root, &cfg)?;
 
     if let Some(t) = args.docker_timeout {
         if t == 0 {
@@ -513,7 +513,8 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
 }
 
 fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> Result<()> {
-    let custom_defs = custom::load(root).unwrap_or_default();
+    let cfg_for_custom = config::load(root)?;
+    let custom_defs = load_custom_defs(root, &cfg_for_custom).unwrap_or_default();
 
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {
@@ -655,6 +656,13 @@ fn parse_jobs_arg(raw: &str) -> Result<config::Jobs> {
         bail!("--jobs must be \"auto\" or a positive integer");
     }
     Ok(config::Jobs::Fixed(n))
+}
+
+fn load_custom_defs(root: &Path, cfg: &Config) -> Result<Vec<custom::CustomGeneratorDef>> {
+    match &cfg.custom_generators_dir {
+        Some(dir) => custom::load(root, dir),
+        None => Ok(Vec::new()),
+    }
 }
 
 fn print_agent_hint(root: &Path, output: &Output) {

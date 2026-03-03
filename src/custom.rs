@@ -25,18 +25,21 @@ pub struct CompileBlock {
     pub command: String,
 }
 
-pub fn load(root: &Path) -> Result<Vec<CustomGeneratorDef>> {
-    let custom_dir = root.join(".oav").join("custom");
+pub fn load(root: &Path, dir: &str) -> Result<Vec<CustomGeneratorDef>> {
+    let custom_dir = root.join(dir);
     if !custom_dir.is_dir() {
-        return Ok(Vec::new());
+        bail!(
+            "custom_generators_dir '{}' does not exist or is not a directory",
+            custom_dir.display()
+        );
     }
 
     let mut defs = Vec::new();
 
     let mut entries: Vec<_> = fs::read_dir(&custom_dir)
-        .context("Failed to read .oav/custom/")?
+        .with_context(|| format!("Failed to read {}", custom_dir.display()))?
         .collect::<Result<Vec<_>, _>>()
-        .context("Failed to iterate .oav/custom/")?;
+        .with_context(|| format!("Failed to iterate {}", custom_dir.display()))?;
     entries.sort_by_key(|e| e.file_name());
 
     for entry in entries {
