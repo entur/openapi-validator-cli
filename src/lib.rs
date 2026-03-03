@@ -190,7 +190,7 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
         cfg.mode = m;
     }
 
-    let custom_defs = load_custom_defs(root, &cfg).unwrap_or_default();
+    let custom_defs = load_custom_defs(root, &cfg)?;
 
     if let Some(gens) = args.server_generators {
         let gens: Vec<String> = gens
@@ -246,7 +246,7 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
         }
     }
 
-    let custom_defs = load_custom_defs(root, &cfg).unwrap_or_default();
+    let custom_defs = load_custom_defs(root, &cfg)?;
 
     // 1. Spec discovery
     let spec = match util::discover_spec(root, false, cfg.search_depth)? {
@@ -514,7 +514,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
 
 fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> Result<()> {
     let cfg_for_custom = config::load(root)?;
-    let custom_defs = load_custom_defs(root, &cfg_for_custom).unwrap_or_default();
+    let custom_defs = load_custom_defs(root, &cfg_for_custom)?;
 
     match command.unwrap_or(ConfigCommand::Print) {
         ConfigCommand::Get { key } => {

@@ -195,27 +195,38 @@ fn resolve_generate_tasks(ctx: &ScopeContext) -> Result<Vec<GenerateTask>> {
         return Ok(tasks);
     }
 
-    let mut builtin_requested = Vec::new();
-    let mut tasks = Vec::new();
+    // Collect which builtins are requested so we can resolve their configs in one pass.
+    let builtin_requested: Vec<String> = ctx
+        .requested
+        .iter()
+        .map(|n| n.trim().to_string())
+        .filter(|n| !n.is_empty() && builtin_names.contains(&n.as_str()))
+        .collect();
 
+    let builtin_configs: HashMap<String, PathBuf> = if builtin_requested.is_empty() {
+        HashMap::new()
+    } else {
+        resolve_configs(ctx.root, ctx.config_dir, &builtin_requested, ctx.overrides)?
+            .into_iter()
+            .collect()
+    };
+
+    // Build task list in request order.
+    let mut tasks = Vec::new();
     for name in ctx.requested {
         let name = name.trim();
         if name.is_empty() {
             continue;
         }
-        if builtin_names.contains(&name) {
-            builtin_requested.push(name.to_string());
+        if let Some(config_path) = builtin_configs.get(name) {
+            tasks.push(GenerateTask::Builtin {
+                name: name.to_string(),
+                config_path: config_path.clone(),
+            });
         } else if let Some(def) = find_custom_by_name(&scope_custom, name) {
             tasks.push(GenerateTask::Custom { def: def.clone() });
         } else {
             anyhow::bail!("Unknown {} generator: '{}'", ctx.scope, name);
-        }
-    }
-
-    if !builtin_requested.is_empty() {
-        let configs = resolve_configs(ctx.root, ctx.config_dir, &builtin_requested, ctx.overrides)?;
-        for (name, config_path) in configs {
-            tasks.insert(0, GenerateTask::Builtin { name, config_path });
         }
     }
 
@@ -245,17 +256,20 @@ fn run_custom_generator(
     let resolved_command = def.generate.command.replace("{spec}", &container_spec);
 
     let command_line = format!(
-        "$ docker run --rm -v {root}:/work {image} sh -c \"{cmd}\"",
+        "$ docker run --rm {user} -v {root}:/work {image} sh -c \"{cmd}\"",
+        user = docker::user_flag(),
         root = ctx.root.display(),
         image = def.generate.image,
         cmd = resolved_command,
-    );
+    )
+    .replace("  ", " ");
     write_log_header(&log_path, &command_line)?;
 
     let mut command = Command::new("docker");
     command
         .arg("run")
         .arg("--rm")
+        .args(docker::user_args())
         .arg("-v")
         .arg(format!("{}:/work", ctx.root.display()))
         .arg(&def.generate.image)

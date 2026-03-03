@@ -62,9 +62,26 @@ pub fn load(root: &Path, dir: &str) -> Result<Vec<CustomGeneratorDef>> {
     Ok(defs)
 }
 
+fn is_safe_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_lowercase() || c.is_ascii_digit() => {}
+        _ => return false,
+    }
+    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '_' || c == '-')
+}
+
 fn validate_def(def: &CustomGeneratorDef, path: &Path) -> Result<()> {
     if def.name.trim().is_empty() {
         bail!("Custom generator in {} has an empty name", path.display());
+    }
+    if !is_safe_name(&def.name) {
+        bail!(
+            "Custom generator '{}' in {} has an invalid name \
+             (must match [a-z0-9][a-z0-9._-]*)",
+            def.name,
+            path.display()
+        );
     }
     match def.scope.as_str() {
         "server" | "client" => {}

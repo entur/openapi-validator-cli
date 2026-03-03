@@ -59,12 +59,26 @@ pub fn run(
         )?);
     }
 
+    let ctx = CompileContext {
+        root,
+        reports_root: &reports_root,
+        output,
+        timeout,
+    };
+
     let jobs = config::resolve_jobs(config.jobs);
     if jobs <= 1 {
-        return run_sequential(root, &tasks, &reports_root, output, timeout);
+        return run_sequential(&ctx, &tasks);
     }
 
-    run_parallel(root, &tasks, &reports_root, output, timeout, jobs)
+    run_parallel(&ctx, &tasks, jobs)
+}
+
+struct CompileContext<'a> {
+    root: &'a Path,
+    reports_root: &'a Path,
+    output: &'a Output,
+    timeout: Duration,
 }
 
 fn compile_task_name(task: &CompileTask) -> &str {
@@ -81,36 +95,24 @@ fn compile_task_scope(task: &CompileTask) -> &str {
     }
 }
 
-fn run_compile_task(
-    root: &Path,
-    task: &CompileTask,
-    reports_root: &Path,
-    output: &Output,
-    timeout: Duration,
-    quiet: bool,
-) -> Result<TaskResult> {
+fn run_compile_task(ctx: &CompileContext, task: &CompileTask, quiet: bool) -> Result<TaskResult> {
     match task {
-        CompileTask::Builtin(t) => {
-            run_single_builtin_compile(root, t, reports_root, output, timeout, quiet)
-        }
+        CompileTask::Builtin(t) => run_single_builtin_compile(ctx, t, quiet),
         CompileTask::Custom { name, scope, block } => {
-            run_single_custom_compile(root, name, scope, block, reports_root, timeout, quiet)
+            run_single_custom_compile(ctx, name, scope, block, quiet)
         }
     }
 }
 
 fn run_single_builtin_compile(
-    root: &Path,
+    ctx: &CompileContext,
     task: &BuiltinTask,
-    reports_root: &Path,
-    output: &Output,
-    timeout: Duration,
     quiet: bool,
 ) -> Result<TaskResult> {
-    let report_dir = reports_root.join(&task.scope);
+    let report_dir = ctx.reports_root.join(&task.scope);
     fs::create_dir_all(&report_dir)?;
     let log_path = report_dir.join(format!("{}.log", task.service));
-    let project_dir = root.join(OAV_DIR);
+    let project_dir = ctx.root.join(OAV_DIR);
     let compose_path = project_dir.join("docker-compose.yaml");
     let command_line = format!(
         "$ docker compose -f {compose} --project-directory {project} run --rm {service}",
@@ -132,9 +134,9 @@ fn run_single_builtin_compile(
         .arg(&task.service);
 
     let success = if quiet {
-        docker::run_with_logging_quiet(&mut command, &log_path, timeout)?
+        docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?
     } else {
-        docker::run_with_logging(&mut command, &log_path, output, timeout)?
+        docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?
     };
 
     Ok(TaskResult {
@@ -146,33 +148,34 @@ fn run_single_builtin_compile(
 }
 
 fn run_single_custom_compile(
-    root: &Path,
+    ctx: &CompileContext,
     name: &str,
     scope: &str,
     block: &custom::CompileBlock,
-    reports_root: &Path,
-    timeout: Duration,
     quiet: bool,
 ) -> Result<TaskResult> {
-    let report_dir = reports_root.join(scope);
+    let report_dir = ctx.reports_root.join(scope);
     fs::create_dir_all(&report_dir)?;
     let log_path = report_dir.join(format!("{name}.log"));
     let workdir = format!("/work/.oav/generated/{scope}/{name}");
 
     let command_line = format!(
-        "$ docker run --rm -v {root}:/work -w {workdir} {image} sh -c \"{cmd}\"",
-        root = root.display(),
+        "$ docker run --rm {user} -v {root}:/work -w {workdir} {image} sh -c \"{cmd}\"",
+        user = docker::user_flag(),
+        root = ctx.root.display(),
         image = block.image,
         cmd = block.command,
-    );
+    )
+    .replace("  ", " ");
     write_log_header(&log_path, &command_line)?;
 
     let mut command = Command::new("docker");
     command
         .arg("run")
         .arg("--rm")
+        .args(docker::user_args())
         .arg("-v")
-        .arg(format!("{}:/work", root.display()))
+        .arg(format!("{}:/work", ctx.root.display()))
         .arg("-w")
         .arg(&workdir)
         .arg(&block.image)
@@ -180,8 +183,11 @@ fn run_single_custom_compile(
         .arg("-c")
         .arg(&block.command);
 
-    let _ = quiet; // verbose streaming handled by builtin path; custom always logs to file
-    let success = docker::run_with_logging_quiet(&mut command, &log_path, timeout)?;
+    let success = if quiet {
+        docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?
+    } else {
+        docker::run_with_logging(&mut command, &log_path, ctx.output, ctx.timeout)?
+    };
 
     Ok(TaskResult {
         name: name.to_string(),
@@ -191,31 +197,25 @@ fn run_single_custom_compile(
     })
 }
 
-fn run_sequential(
-    root: &Path,
-    tasks: &[CompileTask],
-    reports_root: &Path,
-    output: &Output,
-    timeout: Duration,
-) -> Result<bool> {
+fn run_sequential(ctx: &CompileContext, tasks: &[CompileTask]) -> Result<bool> {
     let mut failures = 0;
     for task in tasks {
         let name = compile_task_name(task);
         let scope = compile_task_scope(task);
         let label = format!("Compile {scope} {name}");
-        output.substep_start(&label);
+        ctx.output.substep_start(&label);
 
-        let result = run_compile_task(root, task, reports_root, output, timeout, false)?;
+        let result = run_compile_task(ctx, task, false)?;
 
         append_status(
-            root,
+            ctx.root,
             "compile",
             scope,
             name,
             if result.success { "ok" } else { "fail" },
             &result.log_path,
         )?;
-        output.substep_finish(&label, result.success);
+        ctx.output.substep_finish(&label, result.success);
         if !result.success {
             failures += 1;
         }
@@ -224,15 +224,8 @@ fn run_sequential(
     Ok(failures == 0)
 }
 
-fn run_parallel(
-    root: &Path,
-    tasks: &[CompileTask],
-    reports_root: &Path,
-    output: &Output,
-    timeout: Duration,
-    jobs: usize,
-) -> Result<bool> {
-    let mp = output.multi_progress();
+fn run_parallel(ctx: &CompileContext, tasks: &[CompileTask], jobs: usize) -> Result<bool> {
+    let mp = ctx.output.multi_progress();
     let mp_ref = mp.as_ref();
     let mut all_failures = 0;
 
@@ -244,13 +237,17 @@ fn run_parallel(
                     let name = compile_task_name(task);
                     let scope = compile_task_scope(task);
                     let label = format!("Compile {scope} {name}");
-                    let spinner = mp_ref.map(|m| output.add_parallel_spinner(m, &label));
+                    let spinner = mp_ref.map(|m| ctx.output.add_parallel_spinner(m, &label));
                     s.spawn(move || {
-                        let result =
-                            run_compile_task(root, task, reports_root, output, timeout, true);
+                        let result = run_compile_task(ctx, task, true);
                         if let Some(mp) = mp_ref {
                             let success = result.as_ref().map(|r| r.success).unwrap_or(false);
-                            output.finish_parallel_spinner(mp, spinner.flatten(), &label, success);
+                            ctx.output.finish_parallel_spinner(
+                                mp,
+                                spinner.flatten(),
+                                &label,
+                                success,
+                            );
                         }
                         result
                     })
@@ -266,7 +263,7 @@ fn run_parallel(
         for result in results {
             let result = result?;
             append_status(
-                root,
+                ctx.root,
                 "compile",
                 &result.scope,
                 &result.name,
