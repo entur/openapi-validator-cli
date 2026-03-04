@@ -210,12 +210,12 @@ fn is_openapi_spec(path: &Path) -> bool {
     if file.read_to_string(&mut content).is_err() {
         return false;
     }
-    let doc: serde_yaml::Value = match serde_yaml::from_str(&content) {
+    let doc: yaml_serde::Value = match yaml_serde::from_str(&content) {
         Ok(doc) => doc,
         Err(_) => return false,
     };
     match doc {
-        serde_yaml::Value::Mapping(mapping) => mapping
+        yaml_serde::Value::Mapping(mapping) => mapping
             .keys()
             .filter_map(|key| key.as_str())
             .any(|key| key == "openapi"),

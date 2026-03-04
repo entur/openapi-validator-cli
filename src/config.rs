@@ -151,13 +151,13 @@ pub fn load(root: &Path) -> Result<Config> {
         return Ok(Config::default());
     }
     let content = fs::read_to_string(&path).context("Failed to read .oavc")?;
-    let config = serde_yaml::from_str(&content).context("Failed to parse .oavc")?;
+    let config = yaml_serde::from_str(&content).context("Failed to parse .oavc")?;
     Ok(config)
 }
 
 pub fn write(root: &Path, config: &Config) -> Result<()> {
     let path = root.join(CONFIG_FILE);
-    let content = serde_yaml::to_string(config).context("Failed to serialize config")?;
+    let content = yaml_serde::to_string(config).context("Failed to serialize config")?;
     fs::write(&path, content).context("Failed to write .oavc")?;
     Ok(())
 }
@@ -223,7 +223,7 @@ fn parse_key(key: &str) -> (&str, Option<&str>) {
 }
 
 fn print_yaml<T: Serialize>(value: &T) -> Result<()> {
-    let yaml = serde_yaml::to_string(value).context("Failed to serialize value")?;
+    let yaml = yaml_serde::to_string(value).context("Failed to serialize value")?;
     // Remove trailing newline and print inline
     print!("{}", yaml.trim_end());
     println!();
@@ -474,12 +474,12 @@ fn parse_yaml_list(raw: &str) -> Result<Vec<String>> {
     if raw.trim().is_empty() {
         return Ok(Vec::new());
     }
-    serde_yaml::from_str(raw).context("Failed to parse as YAML list")
+    yaml_serde::from_str(raw).context("Failed to parse as YAML list")
 }
 
 fn parse_yaml_map(raw: &str) -> Result<HashMap<String, String>> {
     if raw.trim().is_empty() {
         return Ok(HashMap::new());
     }
-    serde_yaml::from_str(raw).context("Failed to parse as YAML map")
+    yaml_serde::from_str(raw).context("Failed to parse as YAML map")
 }

@@ -621,7 +621,7 @@ fn cmd_config(root: &Path, output: &Output, command: Option<ConfigCommand>) -> R
                     serde_json::to_string_pretty(&cfg).expect("failed to serialize config")
                 );
             } else {
-                let yaml = serde_yaml::to_string(&cfg).context("Failed to serialize config")?;
+                let yaml = yaml_serde::to_string(&cfg).context("Failed to serialize config")?;
                 print!("{yaml}");
             }
         }
