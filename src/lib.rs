@@ -679,6 +679,7 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
     if !nuke {
         let path = root.join(OAV_DIR);
         if path.exists() {
+            warn_modified_configs(root, output);
             fs::remove_dir_all(&path).context("Failed to remove .oav directory")?;
             output.print_success(&format!("Removed {}", path.display()));
         } else {
@@ -704,6 +705,10 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
     if !has_oav && !has_config && !has_gitignore_entries {
         output.println("Nothing to clean.");
         return Ok(());
+    }
+
+    if has_oav {
+        warn_modified_configs(root, output);
     }
 
     if !yes {
@@ -748,4 +753,18 @@ fn cmd_clean(root: &Path, output: &Output, nuke: bool, yes: bool) -> Result<()> 
 
     output.print_success(&format!("Removed {}", removed.join(", ")));
     Ok(())
+}
+
+fn warn_modified_configs(root: &Path, output: &Output) {
+    let modified = util::find_modified_assets(root, &ASSETS);
+    if modified.is_empty() {
+        return;
+    }
+    output.print_warning("The following generator configs have been modified from defaults:");
+    for path in &modified {
+        output.println(&format!("  .oav/{path}"));
+    }
+    output.println("");
+    output.println("  Use generator_overrides in .oavc to preserve configs outside .oav/.");
+    output.println("");
 }

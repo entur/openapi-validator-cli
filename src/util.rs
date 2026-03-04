@@ -255,6 +255,84 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
     Ok(selection.map(|i| candidates[i].clone()))
 }
 
+// Asset diff detection
+
+/// Compare on-disk generator configs against embedded defaults.
+/// Returns relative paths (e.g. `generators/server/spring.yaml`) for any files
+/// that differ from the embedded version or exist on disk but not in embedded assets.
+pub fn find_modified_assets(root: &Path, assets: &Dir) -> Vec<String> {
+    let oav_dir = root.join(OAV_DIR);
+    let generators_dir = oav_dir.join("generators");
+    if !generators_dir.exists() {
+        return Vec::new();
+    }
+
+    let mut modified = Vec::new();
+    let mut embedded_paths = std::collections::HashSet::new();
+
+    // Check embedded generator files against on-disk versions
+    collect_embedded_generator_diffs(&oav_dir, assets, &mut modified, &mut embedded_paths);
+
+    // Find on-disk files with no embedded counterpart (user-created configs)
+    if let Ok(walker) = fs::read_dir(&generators_dir) {
+        collect_extra_files(&oav_dir, walker, &embedded_paths, &mut modified);
+    }
+
+    modified.sort();
+    modified
+}
+
+fn collect_embedded_generator_diffs(
+    oav_dir: &Path,
+    dir: &Dir,
+    modified: &mut Vec<String>,
+    embedded_paths: &mut std::collections::HashSet<String>,
+) {
+    for entry in dir.entries() {
+        match entry {
+            DirEntry::Dir(child) => {
+                collect_embedded_generator_diffs(oav_dir, child, modified, embedded_paths);
+            }
+            DirEntry::File(file) => {
+                let rel = file.path().to_string_lossy().to_string();
+                if !rel.starts_with("generators/") {
+                    continue;
+                }
+                embedded_paths.insert(rel.clone());
+                let disk_path = oav_dir.join(file.path());
+                if let Ok(disk_content) = fs::read(&disk_path)
+                    && disk_content != file.contents()
+                {
+                    modified.push(rel);
+                }
+            }
+        }
+    }
+}
+
+fn collect_extra_files(
+    oav_dir: &Path,
+    entries: fs::ReadDir,
+    embedded_paths: &std::collections::HashSet<String>,
+    modified: &mut Vec<String>,
+) {
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        if path.is_dir() {
+            if let Ok(sub) = fs::read_dir(&path) {
+                collect_extra_files(oav_dir, sub, embedded_paths, modified);
+            }
+        } else if path.is_file()
+            && let Ok(rel) = path.strip_prefix(oav_dir)
+        {
+            let rel_str = rel.to_string_lossy().to_string();
+            if !embedded_paths.contains(&rel_str) {
+                modified.push(rel_str);
+            }
+        }
+    }
+}
+
 // Logging utilities
 
 pub fn write_log_header(log_path: &Path, command_line: &str) -> Result<()> {
