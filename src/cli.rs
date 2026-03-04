@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 use serde::{Deserialize, Serialize};
 
-/// Machine-readable output format
+/// Output format
 #[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputFormat {
     /// Human-readable output with colors and progress bars
@@ -13,10 +13,10 @@ pub enum OutputFormat {
 #[derive(Parser, Debug)]
 #[command(name = "oav", version, about = "OpenAPI Validator CLI")]
 pub struct Cli {
-    /// Show full tool output (conflicts with -q and --output json)
+    /// Show full tool output (conflicts with -q and --output)
     #[arg(short, long, global = true, conflicts_with_all = ["quiet", "output"])]
     pub verbose: bool,
-    /// Minimal output (conflicts with -v and --output json)
+    /// Minimal output (conflicts with -v and --output)
     #[arg(short, long, global = true, conflicts_with_all = ["verbose", "output"])]
     pub quiet: bool,
     /// When to use colors: auto, always, never
