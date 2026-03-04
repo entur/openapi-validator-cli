@@ -159,3 +159,191 @@ pub fn client_names(defs: &[CustomGeneratorDef]) -> Vec<String> {
         .map(|d| d.name.clone())
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    // ── is_safe_name ────────────────────────────────────────────────────
+
+    #[test]
+    fn safe_name_valid_cases() {
+        for name in ["my-gen", "swagger-ts-api", "gen.v2", "a", "1foo", "a_b"] {
+            assert!(is_safe_name(name), "expected '{name}' to be safe");
+        }
+    }
+
+    #[test]
+    fn safe_name_empty() {
+        assert!(!is_safe_name(""));
+    }
+
+    #[test]
+    fn safe_name_uppercase() {
+        assert!(!is_safe_name("MyGen"));
+    }
+
+    #[test]
+    fn safe_name_leading_dash() {
+        assert!(!is_safe_name("-foo"));
+    }
+
+    #[test]
+    fn safe_name_contains_slash() {
+        assert!(!is_safe_name("a/b"));
+    }
+
+    #[test]
+    fn safe_name_space() {
+        assert!(!is_safe_name("a b"));
+    }
+
+    #[test]
+    fn safe_name_dot_dot() {
+        // ".." starts with '.', which is not alphanumeric → rejected
+        assert!(!is_safe_name(".."));
+    }
+
+    // ── load ────────────────────────────────────────────────────────────
+
+    fn valid_yaml(name: &str, scope: &str) -> String {
+        format!(
+            "name: {name}\nscope: {scope}\ngenerate:\n  image: img:latest\n  command: gen cmd\n"
+        )
+    }
+
+    fn write_def(dir: &Path, filename: &str, yaml: &str) {
+        fs::write(dir.join(filename), yaml).unwrap();
+    }
+
+    #[test]
+    fn load_valid_single_def() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "my-gen.yaml", &valid_yaml("my-gen", "server"));
+
+        let defs = load(tmp.path(), "custom").unwrap();
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].name, "my-gen");
+        assert_eq!(defs[0].scope, "server");
+        assert_eq!(defs[0].generate.image, "img:latest");
+    }
+
+    #[test]
+    fn load_empty_dir() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+
+        let defs = load(tmp.path(), "custom").unwrap();
+        assert!(defs.is_empty());
+    }
+
+    #[test]
+    fn load_nonexistent_dir() {
+        let tmp = TempDir::new().unwrap();
+        let err = load(tmp.path(), "nope").unwrap_err();
+        assert!(
+            err.to_string().contains("does not exist"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_builtin_name_collision() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "spring.yaml", &valid_yaml("spring", "server"));
+
+        let err = load(tmp.path(), "custom").unwrap_err();
+        assert!(
+            err.to_string().contains("collides with built-in"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_duplicate_names_same_scope() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "a.yaml", &valid_yaml("my-gen", "client"));
+        write_def(&custom, "b.yaml", &valid_yaml("my-gen", "client"));
+
+        let err = load(tmp.path(), "custom").unwrap_err();
+        assert!(
+            err.to_string().contains("Duplicate custom generator"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_invalid_scope() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "gen.yaml", &valid_yaml("my-gen", "both"));
+
+        let err = load(tmp.path(), "custom").unwrap_err();
+        assert!(
+            err.to_string().contains("invalid scope"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_unsafe_name() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "gen.yaml", &valid_yaml("Bad-Name", "server"));
+
+        let err = load(tmp.path(), "custom").unwrap_err();
+        assert!(
+            err.to_string().contains("invalid name"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_missing_generate_image() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "gen.yaml", "name: my-gen\nscope: server\n");
+
+        let err = load(tmp.path(), "custom").unwrap_err();
+        assert!(
+            err.to_string().contains("Failed to parse"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn load_skips_non_yaml_files() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "readme.txt", "not yaml at all");
+        write_def(&custom, "my-gen.yml", &valid_yaml("my-gen", "server"));
+
+        let defs = load(tmp.path(), "custom").unwrap();
+        assert_eq!(defs.len(), 1);
+    }
+
+    #[test]
+    fn load_same_name_different_scope_ok() {
+        let tmp = TempDir::new().unwrap();
+        let custom = tmp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        write_def(&custom, "a.yaml", &valid_yaml("my-gen", "server"));
+        write_def(&custom, "b.yaml", &valid_yaml("my-gen", "client"));
+
+        let defs = load(tmp.path(), "custom").unwrap();
+        assert_eq!(defs.len(), 2);
+    }
+}

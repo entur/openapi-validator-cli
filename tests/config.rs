@@ -6,6 +6,7 @@ use common::oav_command;
 use predicates::prelude::*;
 use serde_json::Value;
 use std::fs;
+use std::path::Path;
 use tempfile::TempDir;
 
 // ── Existing field validation ───────────────────────────────────────────
@@ -569,6 +570,7 @@ fn config_print_json_has_all_fields() {
         "spectral_ruleset",
         "spectral_fail_severity",
         "manage_gitignore",
+        "custom_generators_dir",
         "docker_timeout",
         "search_depth",
         "jobs",
@@ -711,4 +713,217 @@ fn load_jobs_numeric_from_yaml() {
         .assert()
         .success()
         .stdout(predicate::str::contains("3"));
+}
+
+// ── custom_generators_dir config field ──────────────────────────────────
+
+fn write_custom_def(root: &Path, dir: &str, filename: &str, yaml: &str) {
+    let custom = root.join(dir);
+    fs::create_dir_all(&custom).unwrap();
+    fs::write(custom.join(filename), yaml).unwrap();
+}
+
+const VALID_CUSTOM_YAML: &str = "\
+name: my-gen\n\
+scope: server\n\
+generate:\n  image: img:latest\n  command: gen cmd\n";
+
+#[test]
+fn set_custom_generators_dir_round_trip() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "custom_generators_dir", "custom"])
+        .assert()
+        .success();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "custom_generators_dir"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("custom"));
+}
+
+#[test]
+fn set_custom_generators_dir_kebab_alias() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "custom-generators-dir", "my-custom"])
+        .assert()
+        .success();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "get", "custom-generators-dir"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("my-custom"));
+}
+
+#[test]
+fn set_custom_generators_dir_clear() {
+    let temp = TempDir::new().unwrap();
+    // Set it first
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "custom_generators_dir", "custom"])
+        .assert()
+        .success();
+    // Clear it with empty value
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "custom_generators_dir", ""])
+        .assert()
+        .success();
+
+    let json = parse_json_stdout(oav_command().current_dir(temp.path()).args([
+        "config",
+        "get",
+        "custom_generators_dir",
+        "--output",
+        "json",
+    ]));
+    assert_eq!(json["value"], Value::Null);
+}
+
+#[test]
+fn config_print_json_includes_custom_generators_dir() {
+    let temp = TempDir::new().unwrap();
+    fs::write(
+        temp.path().join(".oavc"),
+        "custom_generators_dir: my-custom\n",
+    )
+    .unwrap();
+    let json = parse_json_stdout(
+        oav_command()
+            .current_dir(temp.path())
+            .args(["config", "--output", "json"]),
+    );
+    assert_eq!(json["custom_generators_dir"], "my-custom");
+}
+
+// ── config validate with custom defs ────────────────────────────────────
+
+#[test]
+fn config_validate_with_valid_custom_dir() {
+    let temp = TempDir::new().unwrap();
+    write_custom_def(temp.path(), "custom", "my-gen.yaml", VALID_CUSTOM_YAML);
+    fs::write(temp.path().join(".oavc"), "custom_generators_dir: custom\n").unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "validate"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("valid"));
+}
+
+#[test]
+fn config_validate_with_invalid_custom_dir_fails() {
+    let temp = TempDir::new().unwrap();
+    fs::write(
+        temp.path().join(".oavc"),
+        "custom_generators_dir: nonexistent\n",
+    )
+    .unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "validate"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("does not exist"));
+}
+
+#[test]
+fn config_validate_accepts_custom_generator_names() {
+    let temp = TempDir::new().unwrap();
+    write_custom_def(temp.path(), "custom", "my-gen.yaml", VALID_CUSTOM_YAML);
+    fs::write(
+        temp.path().join(".oavc"),
+        "custom_generators_dir: custom\nserver_generators:\n  - my-gen\n",
+    )
+    .unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "validate"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn config_validate_rejects_unknown_with_custom_dir() {
+    let temp = TempDir::new().unwrap();
+    write_custom_def(temp.path(), "custom", "my-gen.yaml", VALID_CUSTOM_YAML);
+    fs::write(
+        temp.path().join(".oavc"),
+        "custom_generators_dir: custom\nserver_generators:\n  - bogus\n",
+    )
+    .unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "validate"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Unsupported server generator"));
+}
+
+// ── Recovery: config set still works when custom dir is invalid ─────────
+
+#[test]
+fn config_set_works_when_custom_dir_invalid() {
+    let temp = TempDir::new().unwrap();
+    fs::write(
+        temp.path().join(".oavc"),
+        "custom_generators_dir: nonexistent\n",
+    )
+    .unwrap();
+
+    // set on a non-generator field should succeed despite bad custom dir
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "set", "docker_timeout", "60"])
+        .assert()
+        .success();
+}
+
+// ── list-generators with custom defs ────────────────────────────────────
+
+#[test]
+fn config_list_generators_shows_custom() {
+    let temp = TempDir::new().unwrap();
+    write_custom_def(temp.path(), "custom", "my-gen.yaml", VALID_CUSTOM_YAML);
+    fs::write(temp.path().join(".oavc"), "custom_generators_dir: custom\n").unwrap();
+
+    oav_command()
+        .current_dir(temp.path())
+        .args(["config", "list-generators"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("my-gen"))
+        .stdout(predicate::str::contains("Custom"));
+}
+
+#[test]
+fn config_list_generators_json_includes_custom() {
+    let temp = TempDir::new().unwrap();
+    write_custom_def(temp.path(), "custom", "my-gen.yaml", VALID_CUSTOM_YAML);
+    fs::write(temp.path().join(".oavc"), "custom_generators_dir: custom\n").unwrap();
+
+    let json = parse_json_stdout(oav_command().current_dir(temp.path()).args([
+        "config",
+        "list-generators",
+        "--output",
+        "json",
+    ]));
+
+    let custom = json["custom"]
+        .as_array()
+        .expect("custom should be an array");
+    assert!(!custom.is_empty(), "custom generators should not be empty");
+    assert!(custom.iter().any(|v| v["name"] == "my-gen"));
 }
