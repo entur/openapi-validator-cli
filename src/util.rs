@@ -260,7 +260,7 @@ fn select_spec_from_candidates(candidates: Vec<String>, quiet: bool) -> Result<O
 /// Compare on-disk generator configs against embedded defaults.
 /// Returns relative paths (e.g. `generators/server/spring.yaml`) for any files
 /// that differ from the embedded version or exist on disk but not in embedded assets.
-pub fn find_modified_assets(root: &Path, assets: &Dir) -> Vec<String> {
+pub fn find_modified_generator_configs(root: &Path, assets: &Dir) -> Vec<String> {
     let oav_dir = root.join(OAV_DIR);
     let generators_dir = oav_dir.join("generators");
     if !generators_dir.exists() {
@@ -316,13 +316,20 @@ fn collect_extra_files(
     embedded_paths: &std::collections::HashSet<String>,
     modified: &mut Vec<String>,
 ) {
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if path.is_dir() {
+    for dir_entry in entries.filter_map(Result::ok) {
+        let ft = match dir_entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() {
+            continue;
+        }
+        let path = dir_entry.path();
+        if ft.is_dir() {
             if let Ok(sub) = fs::read_dir(&path) {
                 collect_extra_files(oav_dir, sub, embedded_paths, modified);
             }
-        } else if path.is_file()
+        } else if ft.is_file()
             && let Ok(rel) = path.strip_prefix(oav_dir)
         {
             let rel_str = rel.to_string_lossy().to_string();
