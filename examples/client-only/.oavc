@@ -1,0 +1,11 @@
+spec: openapi/api.yaml
+mode: client
+lint: true
+generate: true
+compile: true
+client_generators:
+  - typescript-axios
+  - kotlin
+linter: spectral
+spectral_fail_severity: warn
+jobs: auto

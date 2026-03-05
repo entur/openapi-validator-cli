@@ -1,0 +1,19 @@
+spec: openapi/api.yaml
+mode: both
+lint: true
+generate: true
+compile: true
+server_generators:
+  - spring
+  - go-server
+client_generators:
+  - typescript-axios
+  - java
+generator_overrides:
+  spring: ./generator-configs/spring.yaml
+  typescript-axios: ./generator-configs/typescript-axios.yaml
+linter: spectral
+spectral_fail_severity: error
+docker_timeout: 300
+search_depth: 3
+jobs: 4

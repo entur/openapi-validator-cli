@@ -1,0 +1,13 @@
+generatorName: spring
+outputDir: generated/server/spring
+
+additionalProperties:
+  groupId: org.example.transit
+  artifactId: transit-api-server
+  basePackage: org.example.transit
+  apiPackage: org.example.transit.api
+  modelPackage: org.example.transit.model
+  interfaceOnly: true
+  useSpringBoot3: true
+  documentationProvider: springdoc
+  useJakartaEe: true

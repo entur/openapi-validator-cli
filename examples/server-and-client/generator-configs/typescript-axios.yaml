@@ -1,0 +1,11 @@
+generatorName: typescript-axios
+outputDir: generated/client/typescript-axios
+
+additionalProperties:
+  npmName: "@example/transit-api-client"
+  npmVersion: 1.0.0
+  supportsES6: true
+  withInterfaces: true
+  withSeparateModelsAndApi: true
+  apiPackage: api
+  modelPackage: model

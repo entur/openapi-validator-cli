@@ -205,7 +205,7 @@ search_depth: 4
 jobs: auto
 ```
 
-See [CONFIGURATION.md](CONFIGURATION.md) for the full reference.
+See [CONFIGURATION.md](CONFIGURATION.md) for the full reference and [examples/](examples/) for ready-to-use configs covering common setups.
 
 ## Generators
 

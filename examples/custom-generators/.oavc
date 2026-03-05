@@ -1,0 +1,13 @@
+spec: openapi/api.yaml
+mode: both
+lint: true
+generate: true
+compile: true
+server_generators:
+  - rust-axum
+client_generators:
+  - swift5
+custom_generators_dir: generators
+linter: spectral
+docker_timeout: 600
+jobs: 2

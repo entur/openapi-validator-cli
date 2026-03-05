@@ -1,0 +1,11 @@
+spec: openapi/api.yaml
+mode: server
+lint: true
+generate: true
+compile: false
+server_generators:
+  - spring
+linter: redocly
+redocly_image: redocly/cli:1.30.2
+manage_gitignore: true
+jobs: auto

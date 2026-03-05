@@ -1,0 +1,8 @@
+spec: openapi/api.yaml
+mode: server
+lint: true
+generate: false
+compile: false
+linter: spectral
+spectral_ruleset: https://raw.githubusercontent.com/entur/api-guidelines/refs/tags/v2/.spectral.yml
+spectral_fail_severity: hint
