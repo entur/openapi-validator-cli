@@ -159,7 +159,8 @@ fn run_single_custom_compile(
     let log_path = report_dir.join(format!("{name}.log"));
     let workdir = format!("/work/.oav/generated/{scope}/{name}");
 
-    let cmd_args: Vec<&str> = block.command.split_whitespace().collect();
+    let cmd_args = shell_words::split(&block.command)
+        .with_context(|| format!("Failed to parse compile command for '{name}'"))?;
     let command_line = format!(
         "$ docker run --rm {user} -v {root}:/work -w {workdir} {image} {cmd}",
         user = docker::user_flag(),

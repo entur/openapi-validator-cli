@@ -255,7 +255,8 @@ fn run_custom_generator(
     let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
     let resolved_command = def.generate.command.replace("{spec}", &container_spec);
 
-    let cmd_args: Vec<&str> = resolved_command.split_whitespace().collect();
+    let cmd_args = shell_words::split(&resolved_command)
+        .with_context(|| format!("Failed to parse generate command for '{}'", def.name))?;
     let command_line = format!(
         "$ docker run --rm {user} -v {root}:/work {image} {cmd}",
         user = docker::user_flag(),
