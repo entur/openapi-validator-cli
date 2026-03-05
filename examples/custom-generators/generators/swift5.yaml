@@ -3,7 +3,7 @@ scope: client
 generate:
   image: openapitools/openapi-generator-cli:v7.17.0
   command: >-
-    generate
+    docker-entrypoint.sh generate
     -i {spec}
     -g swift5
     -o /work/.oav/generated/client/swift5

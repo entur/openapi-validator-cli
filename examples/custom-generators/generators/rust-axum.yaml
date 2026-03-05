@@ -3,7 +3,7 @@ scope: server
 generate:
   image: openapitools/openapi-generator-cli:v7.17.0
   command: >-
-    generate
+    docker-entrypoint.sh generate
     -i {spec}
     -g rust-axum
     -o /work/.oav/generated/server/rust-axum
