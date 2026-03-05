@@ -159,8 +159,9 @@ fn run_single_custom_compile(
     let log_path = report_dir.join(format!("{name}.log"));
     let workdir = format!("/work/.oav/generated/{scope}/{name}");
 
+    let cmd_args: Vec<&str> = block.command.split_whitespace().collect();
     let command_line = format!(
-        "$ docker run --rm {user} -v {root}:/work -w {workdir} {image} sh -c \"{cmd}\"",
+        "$ docker run --rm {user} -v {root}:/work -w {workdir} {image} {cmd}",
         user = docker::user_flag(),
         root = ctx.root.display(),
         image = block.image,
@@ -179,9 +180,7 @@ fn run_single_custom_compile(
         .arg("-w")
         .arg(&workdir)
         .arg(&block.image)
-        .arg("sh")
-        .arg("-c")
-        .arg(&block.command);
+        .args(&cmd_args);
 
     let success = if quiet {
         docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?

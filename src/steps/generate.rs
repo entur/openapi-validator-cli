@@ -255,8 +255,9 @@ fn run_custom_generator(
     let container_spec = format!("/work/{}", to_posix_path(ctx.spec_path));
     let resolved_command = def.generate.command.replace("{spec}", &container_spec);
 
+    let cmd_args: Vec<&str> = resolved_command.split_whitespace().collect();
     let command_line = format!(
-        "$ docker run --rm {user} -v {root}:/work {image} sh -c \"{cmd}\"",
+        "$ docker run --rm {user} -v {root}:/work {image} {cmd}",
         user = docker::user_flag(),
         root = ctx.root.display(),
         image = def.generate.image,
@@ -273,9 +274,7 @@ fn run_custom_generator(
         .arg("-v")
         .arg(format!("{}:/work", ctx.root.display()))
         .arg(&def.generate.image)
-        .arg("sh")
-        .arg("-c")
-        .arg(&resolved_command);
+        .args(&cmd_args);
 
     let success = if quiet {
         docker::run_with_logging_quiet(&mut command, &log_path, ctx.timeout)?
