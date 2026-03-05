@@ -4,9 +4,9 @@ generate:
   image: openapitools/openapi-generator-cli:v7.17.0
   command: >-
     generate
-    -i /spec/api.yaml
+    -i {spec}
     -g rust-axum
-    -o /out
+    -o /work/.oav/generated/server/rust-axum
     --additional-properties=packageName=openapi_server
 compile:
   image: rust:1.85-alpine

@@ -4,9 +4,9 @@ generate:
   image: openapitools/openapi-generator-cli:v7.17.0
   command: >-
     generate
-    -i /spec/api.yaml
+    -i {spec}
     -g swift5
-    -o /out
+    -o /work/.oav/generated/client/swift5
     --additional-properties=projectName=APIClient,responseAs=AsyncAwait
 compile:
   image: swift:6.1

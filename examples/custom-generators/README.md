@@ -15,6 +15,8 @@ Each YAML file in `generators/` defines:
 - `generate` — Docker image and command for code generation
 - `compile` (optional) — Docker image and command for compilation
 
+Use `{spec}` in `generate.command` — oav replaces it with the in-container spec path at runtime. Output should be written to `/work/.oav/generated/<scope>/<name>`, which is also where the compile step runs.
+
 ## Usage
 
 ```bash
