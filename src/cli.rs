@@ -64,7 +64,7 @@ pub enum Commands {
     },
     /// Run lint, generate, and compile steps
     Validate {
-        /// Path to OpenAPI spec (overrides .oavc)
+        /// Path or URL to OpenAPI spec (overrides .oavc)
         #[arg(long)]
         spec: Option<String>,
         /// Validation mode: server, client, or both

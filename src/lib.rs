@@ -4,6 +4,7 @@ mod completions;
 mod config;
 mod custom;
 mod docker;
+mod fetch;
 mod generators;
 mod json_report;
 mod output;
@@ -406,7 +407,12 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
         if trimmed.is_empty() {
             bail!("--spec cannot be blank");
         }
-        cfg.spec = Some(trimmed);
+        if fetch::looks_like_url(&trimmed) {
+            let fetched = fetch::fetch_spec(root, &trimmed, output)?;
+            cfg.spec = Some(fetched.to_string_lossy().to_string());
+        } else {
+            cfg.spec = Some(trimmed);
+        }
     }
     if let Some(m) = args.mode {
         cfg.mode = m;

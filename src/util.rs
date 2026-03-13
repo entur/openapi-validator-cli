@@ -208,9 +208,21 @@ fn is_json(path: &Path) -> bool {
     )
 }
 
+/// Check whether content (as a string) looks like an OpenAPI spec.
+/// For JSON content, looks for `"openapi":` as a key. For YAML, looks for
+/// `openapi:`. Only the first 512 bytes need to be checked.
+pub fn looks_like_openapi(content: &str, json: bool) -> bool {
+    let head: String = content.chars().take(512).collect();
+    if json {
+        let stripped: String = head.chars().filter(|c| !c.is_whitespace()).collect();
+        stripped.contains("\"openapi\":")
+    } else {
+        head.contains("openapi:")
+    }
+}
+
 /// Heuristic check for OpenAPI specs: reads only the first 512 bytes and
-/// scans for an `openapi` key. For JSON this looks for `"openapi":`, for
-/// YAML it looks for `openapi:`. This avoids parsing potentially large
+/// scans for an `openapi` key. This avoids parsing potentially large
 /// files that happen to have a matching extension.
 fn is_openapi_spec(path: &Path) -> bool {
     let mut file = match File::open(path) {
@@ -223,14 +235,7 @@ fn is_openapi_spec(path: &Path) -> bool {
         Err(_) => return false,
     };
     let head = String::from_utf8_lossy(&buf[..n]);
-    if is_json(path) {
-        // Match `"openapi"` as a JSON key — require a colon after the key
-        // to avoid false positives when the word appears as a string value.
-        let stripped: String = head.chars().filter(|c| !c.is_whitespace()).collect();
-        stripped.contains("\"openapi\":")
-    } else {
-        head.contains("openapi:")
-    }
+    looks_like_openapi(&head, is_json(path))
 }
 
 fn should_skip_entry(entry: &walkdir::DirEntry) -> bool {

@@ -98,6 +98,119 @@ fn infra_error_exits_with_code_2() {
     assert_eq!(output.status.code(), Some(2));
 }
 
+// ── URL spec tests (no Docker required) ─────────────────────────────────
+
+#[test]
+fn spec_url_non_http_rejected() {
+    let temp = TempDir::new().unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["validate", "--spec", "ftp://example.com/spec.yaml"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Spec URL must use HTTP or HTTPS"));
+}
+
+#[test]
+fn spec_url_unreachable_host_fails() {
+    let temp = TempDir::new().unwrap();
+    fs::create_dir_all(temp.path().join(".oav")).unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args([
+            "validate",
+            "--spec",
+            "https://host.invalid.test/openapi.yaml",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Failed to fetch spec from"));
+}
+
+#[test]
+#[ignore]
+fn spec_url_fetches_remote_json() -> Result<(), Box<dyn Error>> {
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".oav"))?;
+
+    // This test only verifies the fetch + spec resolution succeeds.
+    // It will fail at the Docker step (no Docker in CI for non-ignored tests),
+    // but the fetched file should exist.
+    let output = oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--spec",
+            "https://petstore3.swagger.io/api/v3/openapi.json",
+            "--skip-lint",
+            "--skip-generate",
+            "--skip-compile",
+        ])
+        .output()?;
+
+    // The fetched spec should have been written
+    let fetched = root.join(".oav").join("fetched-spec.json");
+    assert!(
+        fetched.exists(),
+        "fetched spec should exist at .oav/fetched-spec.json"
+    );
+
+    let content = fs::read_to_string(&fetched)?;
+    assert!(
+        content.contains("\"openapi\""),
+        "fetched content should look like an OpenAPI spec"
+    );
+
+    // If Docker isn't available the command may fail at a later stage,
+    // but the fetch itself should have succeeded (no "Failed to fetch" in stderr).
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("Failed to fetch"),
+        "fetch should succeed; stderr: {stderr}"
+    );
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn spec_url_fetches_remote_yaml() -> Result<(), Box<dyn Error>> {
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::create_dir_all(root.join(".oav"))?;
+
+    let output = oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--spec",
+            "https://petstore3.swagger.io/api/v3/openapi.yaml",
+            "--skip-lint",
+            "--skip-generate",
+            "--skip-compile",
+        ])
+        .output()?;
+
+    let fetched = root.join(".oav").join("fetched-spec.yaml");
+    assert!(
+        fetched.exists(),
+        "fetched spec should exist at .oav/fetched-spec.yaml"
+    );
+
+    let content = fs::read_to_string(&fetched)?;
+    assert!(
+        content.contains("openapi:"),
+        "fetched content should look like an OpenAPI spec"
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("Failed to fetch"),
+        "fetch should succeed; stderr: {stderr}"
+    );
+    Ok(())
+}
+
 // ── Docker integration tests ────────────────────────────────────────────
 
 #[test]
