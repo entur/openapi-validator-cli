@@ -1,7 +1,7 @@
 class Oav < Formula
   desc "OpenAPI Validator CLI for linting, generating, and compiling OpenAPI specs locally"
   homepage "https://github.com/entur/openapi-validator-cli"
-  version "0.6.1"
+  version "0.7.0"
   license "EUPL-1.2"
 
   # Update version, urls, and sha256 values for each release.
@@ -9,19 +9,19 @@ class Oav < Formula
   on_macos do
     on_intel do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-x86_64-apple-darwin.tar.gz"
-      sha256 "bff050a6b9d615938e9843ca0aea35b0f2e007424f210bad8bebfa74483cfc75"
+      sha256 "14ff8594ff7e8bdb664bb80bc986ecdc88e110b9d8f495dde0929efde67ebdca"
     end
 
     on_arm do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-aarch64-apple-darwin.tar.gz"
-      sha256 "a4b1d465652897af5e3110e9592ae0fc874df4c2fc50f2a153a6878d26555e3a"
+      sha256 "839bec8c85bd716b9297a511b0b9e9ddc2a7ecc7f827b497c9192fe57cb7c253"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/entur/openapi-validator-cli/releases/download/v#{version}/oav-#{version}-x86_64-unknown-linux-gnu.tar.gz"
-      sha256 "84c183402a890dd17d1e6c773fe914f9aebc35be8436df88ba1b474268537bd8"
+      sha256 "0d35b270b02351ad30ebbc41c5a057ed54aa84b9ca48e6c5905558080e980b1d"
     end
   end
 
