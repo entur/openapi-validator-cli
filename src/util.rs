@@ -159,7 +159,7 @@ pub fn normalize_spec_path(root: &Path, spec: &str) -> Result<PathBuf> {
 }
 
 pub fn discover_spec(root: &Path, quiet: bool, max_depth: usize) -> Result<Option<String>> {
-    for name in ["openapi.yaml", "openapi.yml"] {
+    for name in ["openapi.yaml", "openapi.yml", "openapi.json"] {
         let candidate = root.join(name);
         if candidate.is_file() {
             return Ok(Some(name.to_string()));
@@ -178,7 +178,7 @@ pub fn discover_spec(root: &Path, quiet: bool, max_depth: usize) -> Result<Optio
             continue;
         }
         let path = entry.path();
-        if !is_yaml(path) || !is_openapi_spec(path) {
+        if !is_spec_file(path) || !is_openapi_spec(path) {
             continue;
         }
         if let Ok(rel) = path.strip_prefix(root) {
@@ -194,32 +194,38 @@ pub fn discover_spec(root: &Path, quiet: bool, max_depth: usize) -> Result<Optio
     select_spec_from_candidates(matches, quiet)
 }
 
-fn is_yaml(path: &Path) -> bool {
+fn is_spec_file(path: &Path) -> bool {
     matches!(
         path.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_lowercase()),
-        Some(ext) if ext == "yaml" || ext == "yml"
+        Some(ext) if ext == "yaml" || ext == "yml" || ext == "json"
     )
 }
 
+fn is_json(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()).map(|ext| ext.to_lowercase()),
+        Some(ext) if ext == "json"
+    )
+}
+
+/// Check whether a file looks like an OpenAPI spec by reading only the first
+/// 512 bytes and scanning for the top-level `openapi` key. This avoids
+/// parsing potentially large files that happen to have a matching extension.
 fn is_openapi_spec(path: &Path) -> bool {
     let mut file = match File::open(path) {
         Ok(file) => file,
         Err(_) => return false,
     };
-    let mut content = String::new();
-    if file.read_to_string(&mut content).is_err() {
-        return false;
-    }
-    let doc: yaml_serde::Value = match yaml_serde::from_str(&content) {
-        Ok(doc) => doc,
+    let mut buf = [0u8; 512];
+    let n = match file.read(&mut buf) {
+        Ok(n) => n,
         Err(_) => return false,
     };
-    match doc {
-        yaml_serde::Value::Mapping(mapping) => mapping
-            .keys()
-            .filter_map(|key| key.as_str())
-            .any(|key| key == "openapi"),
-        _ => false,
+    let head = String::from_utf8_lossy(&buf[..n]);
+    if is_json(path) {
+        head.contains("\"openapi\"")
+    } else {
+        head.contains("openapi:")
     }
 }
 

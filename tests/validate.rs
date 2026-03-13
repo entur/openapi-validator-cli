@@ -445,3 +445,113 @@ fn invalid_spec_json_report_shows_failure() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
+
+// ── JSON spec file support (Docker) ─────────────────────────────────────
+
+#[test]
+#[ignore]
+fn valid_json_spec_passes_spectral() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("valid.json"), root.join("valid.json"))?;
+    write_config(root, "valid.json")?;
+
+    oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--skip-generate",
+            "--skip-compile",
+            "--ruleset",
+            SPECTRAL_OAS_RULESET,
+        ])
+        .assert()
+        .success();
+
+    let status = fs::read_to_string(root.join(".oav").join("status.tsv"))?;
+    assert!(status.contains("lint\tspec\tspectral\tok"));
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn invalid_json_spec_fails_spectral() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("invalid.json"), root.join("invalid.json"))?;
+    write_config(root, "invalid.json")?;
+
+    oav_command()
+        .current_dir(root)
+        .args([
+            "validate",
+            "--skip-generate",
+            "--skip-compile",
+            "--ruleset",
+            SPECTRAL_OAS_RULESET,
+        ])
+        .assert()
+        .failure();
+
+    let status = fs::read_to_string(root.join(".oav").join("status.tsv"))?;
+    assert!(status.contains("lint\tspec\tspectral\tfail"));
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn valid_json_spec_lints_with_redocly() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("valid.json"), root.join("valid.json"))?;
+    write_config_with_linter(root, "valid.json", "redocly")?;
+
+    oav_command()
+        .current_dir(root)
+        .args(["validate", "--skip-generate", "--skip-compile"])
+        .assert()
+        .success();
+
+    let status = fs::read_to_string(root.join(".oav").join("status.tsv"))?;
+    assert!(status.contains("lint\tspec\tredocly\tok"));
+    Ok(())
+}
+
+#[test]
+#[ignore]
+fn invalid_json_spec_fails_redocly() -> Result<(), Box<dyn Error>> {
+    if !docker_available() {
+        eprintln!("Docker not available, skipping.");
+        return Ok(());
+    }
+
+    let temp = TempDir::new()?;
+    let root = temp.path();
+    fs::copy(fixture_path("invalid.json"), root.join("invalid.json"))?;
+    write_config_with_linter(root, "invalid.json", "redocly")?;
+
+    oav_command()
+        .current_dir(root)
+        .args(["validate", "--skip-generate", "--skip-compile"])
+        .assert()
+        .failure();
+
+    let status = fs::read_to_string(root.join(".oav").join("status.tsv"))?;
+    assert!(status.contains("lint\tspec\tredocly\tfail"));
+    Ok(())
+}

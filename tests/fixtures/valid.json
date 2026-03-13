@@ -1,0 +1,24 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Transport API",
+    "version": "1.0.0",
+    "description": "Public transport schedule and departures.",
+    "contact": {
+      "name": "API Support",
+      "email": "support@example.org"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.transit.example.org/v1",
+      "description": "Production"
+    }
+  ],
+  "paths": {},
+  "components": {}
+}
