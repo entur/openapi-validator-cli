@@ -208,9 +208,10 @@ fn is_json(path: &Path) -> bool {
     )
 }
 
-/// Check whether a file looks like an OpenAPI spec by reading only the first
-/// 512 bytes and scanning for the top-level `openapi` key. This avoids
-/// parsing potentially large files that happen to have a matching extension.
+/// Heuristic check for OpenAPI specs: reads only the first 512 bytes and
+/// scans for an `openapi` key. For JSON this looks for `"openapi":`, for
+/// YAML it looks for `openapi:`. This avoids parsing potentially large
+/// files that happen to have a matching extension.
 fn is_openapi_spec(path: &Path) -> bool {
     let mut file = match File::open(path) {
         Ok(file) => file,
@@ -223,7 +224,10 @@ fn is_openapi_spec(path: &Path) -> bool {
     };
     let head = String::from_utf8_lossy(&buf[..n]);
     if is_json(path) {
-        head.contains("\"openapi\"")
+        // Match `"openapi"` as a JSON key — require a colon after the key
+        // to avoid false positives when the word appears as a string value.
+        let stripped: String = head.chars().filter(|c| !c.is_whitespace()).collect();
+        stripped.contains("\"openapi\":")
     } else {
         head.contains("openapi:")
     }

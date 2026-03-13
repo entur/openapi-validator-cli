@@ -104,6 +104,22 @@ fn yaml_without_openapi_key_ignored() {
         .stderr(predicate::str::contains("No OpenAPI spec found"));
 }
 
+#[test]
+fn json_with_openapi_as_value_ignored() {
+    let temp = TempDir::new().unwrap();
+    fs::write(
+        temp.path().join("meta.json"),
+        r#"{"type": "openapi", "name": "some tool"}"#,
+    )
+    .unwrap();
+    oav_command()
+        .current_dir(temp.path())
+        .args(["init", "--quiet"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("No OpenAPI spec found"));
+}
+
 // --- Explicit --spec with JSON ---
 
 #[test]
