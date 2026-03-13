@@ -210,7 +210,7 @@ fn is_json(path: &Path) -> bool {
 
 /// Check whether content (as a string) looks like an OpenAPI spec.
 /// For JSON content, looks for `"openapi":` as a key. For YAML, looks for
-/// `openapi:`. Only the first 512 bytes need to be checked.
+/// `openapi:`. Only inspects the first 512 characters.
 pub fn looks_like_openapi(content: &str, json: bool) -> bool {
     let head: String = content.chars().take(512).collect();
     if json {
@@ -399,4 +399,44 @@ pub fn append_error(log_path: &Path, message: &str) -> Result<()> {
         .context("Failed to write error log")?;
     writeln!(file, "{message}")?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn looks_like_openapi_yaml_positive() {
+        assert!(looks_like_openapi(
+            "openapi: 3.0.3\ninfo:\n  title: Test",
+            false
+        ));
+    }
+
+    #[test]
+    fn looks_like_openapi_yaml_negative() {
+        assert!(!looks_like_openapi("name: not a spec\nversion: 1.0", false));
+    }
+
+    #[test]
+    fn looks_like_openapi_json_positive() {
+        assert!(looks_like_openapi(
+            r#"{"openapi": "3.0.3", "info": {}}"#,
+            true
+        ));
+    }
+
+    #[test]
+    fn looks_like_openapi_json_negative() {
+        assert!(!looks_like_openapi(r#"{"name": "not a spec"}"#, true));
+    }
+
+    #[test]
+    fn looks_like_openapi_json_value_not_key() {
+        // "openapi" as a value, not a key — should not match
+        assert!(!looks_like_openapi(
+            r#"{"type": "openapi", "name": "tool"}"#,
+            true
+        ));
+    }
 }

@@ -1,24 +1,60 @@
 use anyhow::{Context, Result, bail};
+use indicatif::ProgressBar;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use crate::output::Output;
 use crate::util;
+
+const FETCH_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Guard that clears a spinner on drop, ensuring it never leaks on early returns.
+struct SpinnerGuard<'a> {
+    spinner: Option<ProgressBar>,
+    output: &'a Output,
+    label: &'static str,
+    success: bool,
+}
+
+impl<'a> SpinnerGuard<'a> {
+    fn finish(&mut self, label: &'static str, success: bool) {
+        self.label = label;
+        self.success = success;
+    }
+}
+
+impl Drop for SpinnerGuard<'_> {
+    fn drop(&mut self) {
+        self.output
+            .finish_spinner(self.spinner.as_ref(), self.label, self.success);
+    }
+}
 
 /// Fetch a spec from a URL and write it to `.oav/fetched-spec.{ext}`.
 /// Returns the path to the fetched file, relative to `root`.
 pub fn fetch_spec(root: &Path, url: &str, output: &Output) -> Result<PathBuf> {
     validate_url(url)?;
 
-    let spinner = output.start_spinner(&format!("Fetching spec from {url}"));
+    let mut guard = SpinnerGuard {
+        spinner: output.start_spinner(&format!("Fetching spec from {url}")),
+        output,
+        label: "Fetch failed",
+        success: false,
+    };
 
-    let response = ureq::get(url)
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(FETCH_TIMEOUT))
+        .build()
+        .into();
+
+    let response = agent
+        .get(url)
         .call()
         .with_context(|| format!("Failed to fetch spec from {url}"))?;
 
     let status = response.status();
     if status.as_u16() >= 300 {
-        output.finish_spinner(spinner.as_ref(), "Fetch failed", false);
         bail!("Failed to fetch spec from {url}: HTTP {status}");
     }
 
@@ -35,7 +71,6 @@ pub fn fetch_spec(root: &Path, url: &str, output: &Output) -> Result<PathBuf> {
         .with_context(|| format!("Failed to read response body from {url}"))?;
 
     if body.trim().is_empty() {
-        output.finish_spinner(spinner.as_ref(), "Fetch failed", false);
         bail!("Fetched spec from {url} is empty");
     }
 
@@ -43,7 +78,6 @@ pub fn fetch_spec(root: &Path, url: &str, output: &Output) -> Result<PathBuf> {
     let is_json = ext == "json";
 
     if !util::looks_like_openapi(&body, is_json) {
-        output.finish_spinner(spinner.as_ref(), "Fetch failed", false);
         bail!("Fetched content from {url} does not appear to be an OpenAPI spec");
     }
 
@@ -51,7 +85,7 @@ pub fn fetch_spec(root: &Path, url: &str, output: &Output) -> Result<PathBuf> {
     fs::write(&dest, &body)
         .with_context(|| format!("Failed to write fetched spec to {}", dest.display()))?;
 
-    output.finish_spinner(spinner.as_ref(), "Fetched spec", true);
+    guard.finish("Fetched spec", true);
 
     // Return the path relative to root
     let relative = dest
