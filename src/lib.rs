@@ -183,8 +183,24 @@ fn cmd_init(root: &Path, output: &Output, args: InitArgs) -> Result<()> {
         }
         cfg.spec = Some(trimmed);
     }
-    if cfg.spec.is_none() {
-        cfg.spec = util::discover_spec(root, output.quiet, cfg.search_depth)?;
+    if cfg.spec.is_none()
+        && let Some(found) = util::discover_spec(root, output.quiet, cfg.search_depth)?
+    {
+        output.print_detail("Found spec", &found);
+        if !output.quiet && !output.json {
+            let term = console::Term::stderr();
+            if term.is_term() {
+                let confirmed =
+                    dialoguer::Confirm::with_theme(&dialoguer::theme::ColorfulTheme::default())
+                        .with_prompt("Use this spec?")
+                        .default(true)
+                        .interact_on(&term)?;
+                if !confirmed {
+                    bail!("Setup cancelled.");
+                }
+            }
+        }
+        cfg.spec = Some(found);
     }
     if let Some(m) = args.mode {
         cfg.mode = m;
@@ -250,7 +266,25 @@ fn cmd_init_interactive(root: &Path, output: &Output, args: InitArgs) -> Result<
 
     // 1. Spec discovery
     let spec = match util::discover_spec(root, false, cfg.search_depth)? {
-        Some(s) => s,
+        Some(s) => {
+            output.print_detail("Found spec", &s);
+            let confirmed = dialoguer::Confirm::with_theme(&theme)
+                .with_prompt("Use this spec?")
+                .default(true)
+                .interact_on(&term)?;
+            if confirmed {
+                s
+            } else {
+                let input: String = dialoguer::Input::with_theme(&theme)
+                    .with_prompt("Enter path to OpenAPI spec")
+                    .interact_on(&term)?;
+                let trimmed = input.trim().to_string();
+                if trimmed.is_empty() {
+                    bail!("Spec path cannot be blank");
+                }
+                trimmed
+            }
+        }
         None => {
             let input: String = dialoguer::Input::with_theme(&theme)
                 .with_prompt("No OpenAPI spec found — enter path")
@@ -418,6 +452,7 @@ fn cmd_validate(root: &Path, output: &Output, args: ValidateArgs) -> Result<()> 
     let spec = if let Some(s) = cfg.spec.clone() {
         s
     } else if let Some(s) = util::discover_spec(root, output.quiet, cfg.search_depth)? {
+        output.print_detail("Found spec", &s);
         s
     } else {
         bail!("No OpenAPI spec found. Pass --spec or set spec in .oavc.");
