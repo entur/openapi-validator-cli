@@ -1,5 +1,7 @@
 # OpenAPI Validator CLI
 
+> **This repository has moved.** Development continues at [entur/openapi-validator](https://github.com/entur/openapi-validator), where `oav` lives alongside the [`lazyoav`](https://github.com/entur/openapi-validator/tree/main/crates/tui) TUI and a shared library. This repo is archived; please file new issues and PRs against the new repo.
+
 [![GitHub Release](https://img.shields.io/github/v/release/entur/openapi-validator-cli?style=flat-square&label=release)](https://github.com/entur/openapi-validator-cli/releases/latest)
 [![Rust](https://img.shields.io/badge/rust-1.92%2B-orange?style=flat-square&logo=rust)](https://www.rust-lang.org)
 [![Homebrew](https://img.shields.io/github/v/release/entur/openapi-validator-cli?style=flat-square&label=homebrew&color=fbb040)](https://github.com/entur/openapi-validator-cli#homebrew)
